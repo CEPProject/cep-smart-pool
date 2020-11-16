@@ -13,7 +13,7 @@ describe("ReentryProtection", function () {
   this.timeout(300000);
   let signers: Signer[];
   let account: string;
-  let testContract: TestReentryProtection;
+  let testContract: TestReentryProtection; // 测试再入保护
 
   beforeEach(async () => {
     signers = await ethers.signers();
@@ -22,14 +22,14 @@ describe("ReentryProtection", function () {
     // smartpool = await deployContract(signers[0] as Wallet, PBasicSmartPoolArtifact, [], {gasLimit: 8000000}) as PBasicSmartPool
     testContract = (await deployContract(
       signers[0] as Wallet,
-      TestReentryArtifact,
+      TestReentryArtifact,//测试再入工件
       []
     )) as TestReentryProtection;
   });
 
   it("Should prevent reentry", async () => {
-    await expect(testContract.test()).to.be.revertedWith(
-      "ReentryProtection.noReentry: reentry detected"
+    await expect(testContract.test()).to.be.revertedWith( // 还原
+      "ReentryProtection.noReentry: reentry detected"  // 监测到重新进入
     );
   });
 });
