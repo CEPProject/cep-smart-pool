@@ -44,12 +44,12 @@ contract PProxiedFactory is Ownable {
     // Deploy proxy contract
     PProxyPausable proxy = new PProxyPausable();
 
-    // Setup proxy
+    // Setup proxy 设定代理
     proxy.setImplementation(smartPoolImplementation);
     proxy.setPauzer(msg.sender);
     proxy.setProxyOwner(msg.sender);
 
-    // Setup balancer pool
+    // Setup balancer pool 设定平衡器池
     address balancerPoolAddress = balancerFactory.newBPool();
     IBPool bPool = IBPool(balancerPoolAddress);
 
@@ -59,7 +59,7 @@ contract PProxiedFactory is Ownable {
       token.transferFrom(msg.sender, address(this), _amounts[i]);
       // Approve the balancer pool
       token.safeApprove(balancerPoolAddress, uint256(-1));
-      // Bind tokens
+      // Bind tokens 绑定代币
       bPool.bind(_tokens[i], _amounts[i], _weights[i]);
     }
     bPool.setController(address(proxy));
