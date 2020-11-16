@@ -96,41 +96,41 @@ describe("poolToken", function () {
   //     expect(balance).to.eq(mintAmount);
   //   });
   // });
-  describe("transfer", async () => {
-    it("Should fail when the sender does not have enought balance", async () => {
-      await pcToken.mint(account, constants.WeiPerEther);
-      await expect(pcToken.transfer(account2, constants.WeiPerEther.add(1))).to.be.revertedWith(
-        "ERR_INSUFFICIENT_BAL"
-      );
-    });
-    it("Sending the entire balance should work", async () => {
-      await pcToken.mint(account, constants.WeiPerEther);
-      await pcToken.transfer(account2, constants.WeiPerEther);
+  // describe("transfer", async () => {
+  //   it("Should fail when the sender does not have enought balance", async () => {
+  //     await pcToken.mint(account, constants.WeiPerEther);
+  //     await expect(pcToken.transfer(account2, constants.WeiPerEther.add(1))).to.be.revertedWith(
+  //       "ERR_INSUFFICIENT_BAL"
+  //     );
+  //   });
+  //   it("Sending the entire balance should work", async () => {
+  //     await pcToken.mint(account, constants.WeiPerEther);
+  //     await pcToken.transfer(account2, constants.WeiPerEther);
 
-      const accountBalance = await pcToken.balanceOf(account);
-      const account2Balance = await pcToken.balanceOf(account2);
+  //     const accountBalance = await pcToken.balanceOf(account);
+  //     const account2Balance = await pcToken.balanceOf(account2);
 
-      expect(accountBalance).to.eq(0);
-      expect(account2Balance).to.eq(constants.WeiPerEther);
-    });
-    it("Should emit transfer event", async () => {
-      // 触发转让事件
-      await pcToken.mint(account, constants.WeiPerEther);
-      await expect(pcToken.transfer(account2, constants.WeiPerEther))
-        .to.emit(pcToken, "Transfer")
-        .withArgs(account, account2, constants.WeiPerEther);
-    });
-    it("Sending 0 tokens should work", async () => {
-      await pcToken.mint(account, constants.WeiPerEther);
-      await pcToken.transfer(account2, constants.Zero);
+  //     expect(accountBalance).to.eq(0);
+  //     expect(account2Balance).to.eq(constants.WeiPerEther);
+  //   });
+  //   it("Should emit transfer event", async () => {
+  //     // 触发转让事件
+  //     await pcToken.mint(account, constants.WeiPerEther);
+  //     await expect(pcToken.transfer(account2, constants.WeiPerEther))
+  //       .to.emit(pcToken, "Transfer")
+  //       .withArgs(account, account2, constants.WeiPerEther);
+  //   });
+  //   it("Sending 0 tokens should work", async () => {
+  //     await pcToken.mint(account, constants.WeiPerEther);
+  //     await pcToken.transfer(account2, constants.Zero);
 
-      const accountBalance = await pcToken.balanceOf(account);
-      const account2Balance = await pcToken.balanceOf(account2);
+  //     const accountBalance = await pcToken.balanceOf(account);
+  //     const account2Balance = await pcToken.balanceOf(account2);
 
-      expect(accountBalance).to.eq(constants.WeiPerEther);
-      expect(account2Balance).to.eq(0);
-    });
-  });
+  //     expect(accountBalance).to.eq(constants.WeiPerEther);
+  //     expect(account2Balance).to.eq(0);
+  //   });
+  // });
   describe("approve", async () => {
     it("Should emit event", async () => {
       await expect(pcToken.approve(account2, constants.WeiPerEther))
@@ -139,6 +139,7 @@ describe("poolToken", function () {
     });
     it("Should work when there was no approved amount before", async () => {
       await pcToken.approve(account2, constants.WeiPerEther);
+
       const approvalAmount = await pcToken.allowance(account, account2);
       expect(approvalAmount).to.eq(constants.WeiPerEther);
     });
@@ -162,12 +163,14 @@ describe("poolToken", function () {
     it("Should work when there was no approved amount before", async () => {
       await pcToken.increaseApproval(account2, constants.WeiPerEther);
       const approvalAmount = await pcToken.allowance(account, account2);
+      // console.log("no approved",approvalAmount) -- BigNumber { _hex: '0x0de0b6b3a7640000' }
       expect(approvalAmount).to.eq(constants.WeiPerEther);
     });
     it("Should work when there was an approved amount before", async () => {
       await pcToken.increaseApproval(account2, constants.WeiPerEther);
       await pcToken.increaseApproval(account2, constants.WeiPerEther);
       const approvalAmount = await pcToken.allowance(account, account2);
+      // console.log("an approved",approvalAmount) -- BigNumber { _hex: '0x1bc16d674ec80000' }
       expect(approvalAmount).to.eq(constants.WeiPerEther.mul(2));
     });
     it("Increasing approval beyond max uint256 should fail", async () => {
@@ -181,6 +184,7 @@ describe("poolToken", function () {
     beforeEach(async () => {
       await pcToken.approve(account2, constants.WeiPerEther);
     });
+    // decreaseApproval 时 触发事件
     it("Should emit event", async () => {
       await expect(pcToken.decreaseApproval(account2, constants.WeiPerEther))
         .to.emit(pcToken, "Approval")
@@ -202,50 +206,50 @@ describe("poolToken", function () {
       expect(approvalAmount).to.eq(constants.Zero);
     });
   });
-  describe("transferFrom", async () => {
-    beforeEach(async () => {
-      await pcToken.mint(account, constants.WeiPerEther);
-    });
-    it("Should emit event", async () => {
-      await pcToken.approve(account2, constants.WeiPerEther);
-      pcToken = pcToken.connect(signers[1]);
-      await expect(pcToken.transferFrom(account, account2, constants.WeiPerEther))
-        .to.emit(pcToken, "Transfer")
-        .withArgs(account, account2, constants.WeiPerEther);
-    });
-    it("Should work when sender has enough balance and approved spender", async () => {
-      await pcToken.approve(account2, constants.WeiPerEther);
-      pcToken = pcToken.connect(signers[1]);
-      await pcToken.transferFrom(account, account2, constants.WeiPerEther);
+//   describe("transferFrom", async () => {
+//     beforeEach(async () => {
+//       await pcToken.mint(account, constants.WeiPerEther);
+//     });
+//     it("Should emit event", async () => {
+//       await pcToken.approve(account2, constants.WeiPerEther);
+//       pcToken = pcToken.connect(signers[1]);
+//       await expect(pcToken.transferFrom(account, account2, constants.WeiPerEther))
+//         .to.emit(pcToken, "Transfer")
+//         .withArgs(account, account2, constants.WeiPerEther);
+//     });
+//     it("Should work when sender has enough balance and approved spender", async () => {
+//       await pcToken.approve(account2, constants.WeiPerEther);
+//       pcToken = pcToken.connect(signers[1]);
+//       await pcToken.transferFrom(account, account2, constants.WeiPerEther);
 
-      const accountBalance = await pcToken.balanceOf(account);
-      const account2Balance = await pcToken.balanceOf(account2);
-      const approvalAmount = await pcToken.allowance(account, account2);
+//       const accountBalance = await pcToken.balanceOf(account);
+//       const account2Balance = await pcToken.balanceOf(account2);
+//       const approvalAmount = await pcToken.allowance(account, account2);
 
-      expect(accountBalance).to.eq(constants.Zero);
-      expect(account2Balance).to.eq(constants.WeiPerEther);
-      expect(approvalAmount).to.eq(constants.Zero);
-    });
-    it("Should fail when not enough allowance is set", async () => {
-      await pcToken.approve(account2, constants.WeiPerEther.sub(1));
-      pcToken = pcToken.connect(signers[1]);
-      await expect(
-        pcToken.transferFrom(account, account2, constants.WeiPerEther)
-      ).to.be.revertedWith("ERR_PCTOKEN_BAD_CALLER");
-    });
-    it("Should fail when sender does not have enough balance", async () => {
-      await pcToken.approve(account2, constants.WeiPerEther.add(1));
-      pcToken = pcToken.connect(signers[1]);
-      await expect(
-        pcToken.transferFrom(account, account2, constants.WeiPerEther.add(1))
-      ).to.be.revertedWith("ERR_INSUFFICIENT_BAL");
-    });
-    it("Should not change approval amount when it was set to max uint256", async () => {
-      await pcToken.approve(account2, constants.MaxUint256);
-      pcToken = pcToken.connect(signers[1]);
-      await pcToken.transferFrom(account, account2, constants.WeiPerEther);
-      const approvalAmount = await pcToken.allowance(account, account2);
-      expect(approvalAmount).to.eq(constants.MaxUint256);
-    });
-  });
-});
+//       expect(accountBalance).to.eq(constants.Zero);
+//       expect(account2Balance).to.eq(constants.WeiPerEther);
+//       expect(approvalAmount).to.eq(constants.Zero);
+//     });
+//     it("Should fail when not enough allowance is set", async () => {
+//       await pcToken.approve(account2, constants.WeiPerEther.sub(1));
+//       pcToken = pcToken.connect(signers[1]);
+//       await expect(
+//         pcToken.transferFrom(account, account2, constants.WeiPerEther)
+//       ).to.be.revertedWith("ERR_PCTOKEN_BAD_CALLER");
+//     });
+//     it("Should fail when sender does not have enough balance", async () => {
+//       await pcToken.approve(account2, constants.WeiPerEther.add(1));
+//       pcToken = pcToken.connect(signers[1]);
+//       await expect(
+//         pcToken.transferFrom(account, account2, constants.WeiPerEther.add(1))
+//       ).to.be.revertedWith("ERR_INSUFFICIENT_BAL");
+//     });
+//     it("Should not change approval amount when it was set to max uint256", async () => {
+//       await pcToken.approve(account2, constants.MaxUint256);
+//       pcToken = pcToken.connect(signers[1]);
+//       await pcToken.transferFrom(account, account2, constants.WeiPerEther);
+//       const approvalAmount = await pcToken.allowance(account, account2);
+//       expect(approvalAmount).to.eq(constants.MaxUint256);
+//     });
+//   });
+// });
