@@ -5,7 +5,7 @@ import {ethers, run, deployments, ethereum} from "@nomiclabs/buidler";
 import {Signer, Wallet, utils, constants} from "ethers";
 import {BigNumber} from "ethers/utils";
 import chai from "chai";
-import {deployContract, solidity} from "ethereum-waffle";
+import {deployContract, solidity} from "ethereum-waffle"; // deployContract,solidity是从ethereum-waffle引入的
 
 import {deployBalancerPool, TimeTraveler} from "../utils";
 import {IbPool} from "../typechain/IbPool";
@@ -15,13 +15,13 @@ import {Pv2SmartPool} from "../typechain/Pv2SmartPool";
 // import PV2SmartPoolArtifact from "../artifacts/PV2SmartPool.json";
 
 chai.use(solidity);
-const {expect} = chai;
+const {expect} = chai;  // expect用法：expect(4 + 5).to.be.equal(9);
 
 const PLACE_HOLDER_ADDRESS = "0x0000000000000000000000000000000000000001";
 const NAME = "TEST POOL";
 const SYMBOL = "TPL";
-const INITIAL_SUPPLY = constants.WeiPerEther;
-const INITIAL_TOKEN_SUPPLY = constants.WeiPerEther.mul(constants.WeiPerEther.mul(1000000));
+const INITIAL_SUPPLY = constants.WeiPerEther;// 初始供应量
+const INITIAL_TOKEN_SUPPLY = constants.WeiPerEther.mul(constants.WeiPerEther.mul(1000000)); // 初始token供应量
 let tokenFactory: MockTokenFactory;
 const timeTraveler = new TimeTraveler(ethereum);
 
@@ -39,7 +39,7 @@ describe("Basic Pool Functionality", function () {
     pool = IbPoolFactory.connect(await deployBalancerPool(signers[0]), signers[0]);
     tokenFactory = new MockTokenFactory(signers[0]);
     tokens = [];
-    for (let i = 0; i < 7; i++) {
+    for (let i = 0; i < 7; i++) { // pool中共有七种token
       const token: MockToken = await tokenFactory.deploy(`Mock ${i}`, `M${i}`, 18);
       await token.mint(account, INITIAL_TOKEN_SUPPLY);
       await token.mint(await signers[1].getAddress(), constants.WeiPerEther.mul(1000000));
@@ -53,20 +53,20 @@ describe("Basic Pool Functionality", function () {
     await smartpool.init(pool.address, NAME, SYMBOL, INITIAL_SUPPLY);
     await smartpool.approveTokens();
 
-    await pool.setController(smartpool.address);
+    await pool.setController(smartpool.address); // 设置controller 就是 创建pool的钱包地址
 
-    for (const token of tokens) {
+    for (const token of tokens) { // 循环新的数组：已经存在七种token的数组
       await token.approve(smartpool.address, constants.MaxUint256);
       // Attach alt signer to token and approve pool
       await MockTokenFactory.connect(token.address, signers[1]).approve(
         smartpool.address,
-        constants.MaxUint256
+        constants.MaxUint256 // 常量
       );
     }
 
     // Set cap to max to pass tests
     await smartpool.setCap(ethers.constants.MaxUint256);
-    // Enable entry and exit for tests
+    // 启用测试的进入和退出
     await smartpool.setJoinExitEnabled(true);
     // await timeTraveler.snapshot();
   });
@@ -81,18 +81,21 @@ describe("Basic Pool Functionality", function () {
 
   describe("init", async () => {
     it("Initialising with invalid bPool address should fail", async () => {
+      // 用无效的bPool地址初始化应该会失败
       smartpool = (await run("deploy-libraries-and-smartpool")) as Pv2SmartPool;
       await expect(
         smartpool.init(ethers.constants.AddressZero, "TEST", "TEST", ethers.constants.WeiPerEther)
-      ).to.be.revertedWith("PV2SmartPool.init: _bPool cannot be 0x00....000");
+      ).to.be.revertedWith("PV2SmartPool.init: _bPool cannot be 0x00....000"); // 初始地址值不为0 就返回这段话
     });
     it("Initialising with zero supply should fail", async () => {
+      // 用 0 供应量 初始化会失败
       smartpool = (await run("deploy-libraries-and-smartpool")) as Pv2SmartPool;
       await expect(
         smartpool.init(PLACE_HOLDER_ADDRESS, "TEST", "TEST", ethers.constants.Zero)
       ).to.be.revertedWith("PV2SmartPool.init: _initialSupply can not zero");
     });
     it("Token symbol should be correct", async () => {
+      // 代币符号是正确的
       const name = await smartpool.name();
       expect(name).to.eq(NAME);
     });

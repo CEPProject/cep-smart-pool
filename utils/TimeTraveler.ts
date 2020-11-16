@@ -1,4 +1,4 @@
-import {EthereumProvider} from "@nomiclabs/buidler/types";
+import {EthereumProvider} from "@nomiclabs/buidler/types"; // 以太坊提供商
 
 class TimeTraveler {
   private snapshotID: any;
@@ -31,7 +31,7 @@ class TimeTraveler {
     await this.ethereum.send("evm_increaseTime", [amount]);
   }
 
-  public async setNextBlockTimestamp(timestamp: number) {
+  public async setNextBlockTimestamp(timestamp: number) { // 设置下一区块时间戳
     await this.ethereum.send("evm_setNextBlockTimestamp", [timestamp]);
   }
 }
