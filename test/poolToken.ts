@@ -13,8 +13,8 @@ import {TestPcToken} from "../typechain/TestPcToken";
 chai.use(solidity);
 const {expect} = chai;
 
-const NAME = "TEST POOL";
-const SYMBOL = "TPL";
+const NAME = "ZJT";
+const SYMBOL = "abc";
 
 describe("poolToken", function () {
   this.timeout(300000);
@@ -28,6 +28,9 @@ describe("poolToken", function () {
     account = await signers[0].getAddress();
     account2 = await signers[1].getAddress();
 
+    // console.log("account address is: ",account);
+    // console.log("account2 address is: ",account2);
+    // 请求钱包地址   添加TestPCTokenArtifact
     pcToken = (await deployContract(signers[0] as Wallet, TestPCTokenArtifact, [NAME, SYMBOL], {
       gasLimit: 100000000,
     })) as TestPcToken;
@@ -40,6 +43,7 @@ describe("poolToken", function () {
     });
     it("Token name should be correct", async () => {
       const name = await pcToken.name();
+      // console.log("name is: ",name);
       expect(name).to.eq(NAME);
     });
     it("Symbol should be correct", async () => {
@@ -48,6 +52,7 @@ describe("poolToken", function () {
     });
     it("Initial supply should be zero", async () => {
       const totalSupply = await pcToken.totalSupply();
+      console.log("totalSupply is: ",totalSupply);
       expect(totalSupply).to.eq(0);
     });
     it("After minting total supply should go up by minted amount", async () => {
