@@ -13,8 +13,8 @@ import {TestPcToken} from "../typechain/TestPcToken";
 chai.use(solidity);
 const {expect} = chai;
 
-const NAME = "ZJT";
-const SYMBOL = "abc";
+const NAME = "TEST POOL";
+const SYMBOL = "TPL";
 
 describe("poolToken", function () {
   this.timeout(300000);

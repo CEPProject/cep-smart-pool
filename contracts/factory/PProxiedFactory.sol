@@ -18,8 +18,9 @@ contract PProxiedFactory is Ownable {
   address[] public pools;
 
   event SmartPoolCreated(address indexed poolAddress, string name, string symbol);
-
+  // 初始化
   function init(address _balancerFactory, address _implementation) public {
+    // 请求 智能池实例
     require(smartPoolImplementation == address(0), "Already initialised");
     _setOwner(msg.sender);
     balancerFactory = IBFactory(_balancerFactory);
