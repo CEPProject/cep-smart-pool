@@ -692,11 +692,13 @@ describe("Basic Pool Functionality", function () {
 
   describe("lockBPoolSwap modifier", async () => {
     it("If swap disabled, keep disabled", async () => {
-      await expect (await smartpool.isPublicSwap()).is.eq(false);
+      // 如果禁用交换，就保持禁用
+      await expect (await smartpool.isPublicSwap()).is.eq(false);// PV2SmartPool
       await smartpool.joinPool(constants.WeiPerEther);
-      await expect (await pool.isPublicSwap()).is.eq(false);
+      await expect (await pool.isPublicSwap()).is.eq(false); // Ibpool
     });
     it("If swap enabled, keep enabled", async () => {
+      // 启用交换，保持启用
       await smartpool.setPublicSwap(true);
       await expect (await smartpool.isPublicSwap()).is.eq(true);
       // would be nice of we can verify the following calls
