@@ -87,56 +87,57 @@ describe("Advanced Pool Functionality", function () {
     //   ).to.be.revertedWith("PV2SmartPool.onlyController: not controller");
     // });
 
-    it("Updating down should work", async () => {
-      const weightBefore = await smartpool.getDenormalizedWeight(tokens[0].address);
-      const totalWeightBefore = await pool.getTotalDenormalizedWeight();
-      const poolTokenBalanceBefore = await tokens[0].balanceOf(pool.address);
-      const userTokenBalanceBefore = await tokens[0].balanceOf(account);
-      const userSmartPoolTokenBalanceBefore = await smartpool.balanceOf(account);
-      const poolSmartPoolTokenTotalSupplyBefore = await smartpool.totalSupply();
+    // it("Updating down should work", async () => {
+    //   const weightBefore = await smartpool.getDenormalizedWeight(tokens[0].address);
+    //   const totalWeightBefore = await pool.getTotalDenormalizedWeight();
+    //   const poolTokenBalanceBefore = await tokens[0].balanceOf(pool.address);
+    //   const userTokenBalanceBefore = await tokens[0].balanceOf(account);
+    //   const userSmartPoolTokenBalanceBefore = await smartpool.balanceOf(account);
+    //   const poolSmartPoolTokenTotalSupplyBefore = await smartpool.totalSupply();
 
-      await smartpool.updateWeight(tokens[0].address, constants.WeiPerEther);
+    //   await smartpool.updateWeight(tokens[0].address, constants.WeiPerEther);
 
-      const newWeight = await smartpool.getDenormalizedWeight(tokens[0].address);
-      const totalWeightAfter = await pool.getTotalDenormalizedWeight();
-      const poolTokenBalanceAfter = await tokens[0].balanceOf(pool.address);
-      const userTokenBalanceAfter = await tokens[0].balanceOf(account);
-      const userSmartPoolTokenBalanceAfter = await smartpool.balanceOf(account);
-      const poolSmartPoolTokenTotalSupplyAfter = await smartpool.totalSupply();
+    //   const newWeight = await smartpool.getDenormalizedWeight(tokens[0].address);
+    //   const totalWeightAfter = await pool.getTotalDenormalizedWeight();
+    //   const poolTokenBalanceAfter = await tokens[0].balanceOf(pool.address);
+    //   const userTokenBalanceAfter = await tokens[0].balanceOf(account);
+    //   const userSmartPoolTokenBalanceAfter = await smartpool.balanceOf(account);
+    //   const poolSmartPoolTokenTotalSupplyAfter = await smartpool.totalSupply();
 
-      const expectedBurn = poolSmartPoolTokenTotalSupplyBefore
-        .mul(totalWeightBefore.sub(totalWeightAfter))
-        .div(totalWeightBefore);
-      const expectedTokenWithdraw = poolTokenBalanceBefore.mul(newWeight).div(weightBefore);
-      console.log("expectedTokenWithdraw is",expectedTokenWithdraw)
-      // expect(newWeight).to.eq(constants.WeiPerEther);
-      // expect(userSmartPoolTokenBalanceAfter).to.eq(
-      //   userSmartPoolTokenBalanceBefore.sub(expectedBurn)
-      // );
-      // expect(poolSmartPoolTokenTotalSupplyAfter).to.eq(
-      //   poolSmartPoolTokenTotalSupplyBefore.sub(expectedBurn)
-      // );
-      // expect(userTokenBalanceAfter).to.eq(userTokenBalanceBefore.add(expectedTokenWithdraw));
-      // expect(poolTokenBalanceAfter).to.eq(poolTokenBalanceBefore.sub(expectedTokenWithdraw));
-      // expect(totalWeightAfter).to.eq(totalWeightBefore.sub(constants.WeiPerEther));
-    });
+    //   const expectedBurn = poolSmartPoolTokenTotalSupplyBefore
+    //     .mul(totalWeightBefore.sub(totalWeightAfter))
+    //     .div(totalWeightBefore);
+    //   const expectedTokenWithdraw = poolTokenBalanceBefore.mul(newWeight).div(weightBefore);
+    //   console.log("expectedTokenWithdraw is",expectedTokenWithdraw)
+    //   // expect(newWeight).to.eq(constants.WeiPerEther);
+    //   // expect(userSmartPoolTokenBalanceAfter).to.eq(
+    //   //   userSmartPoolTokenBalanceBefore.sub(expectedBurn)
+    //   // );
+    //   // expect(poolSmartPoolTokenTotalSupplyAfter).to.eq(
+    //   //   poolSmartPoolTokenTotalSupplyBefore.sub(expectedBurn)
+    //   // );
+    //   // expect(userTokenBalanceAfter).to.eq(userTokenBalanceBefore.add(expectedTokenWithdraw));
+    //   // expect(poolTokenBalanceAfter).to.eq(poolTokenBalanceBefore.sub(expectedTokenWithdraw));
+    //   // expect(totalWeightAfter).to.eq(totalWeightBefore.sub(constants.WeiPerEther));
+    // });
 
-    it("Updating down while the token transfer returns false should fail", async () => {
-      // await tokens[0].setTransferReturnFalse(false); -- 会失败
-      await tokens[0].setTransferReturnFalse(true);
+    // it("Updating down while the token transfer returns false should fail", async () => {
+    //   // await tokens[0].setTransferReturnFalse(false); -- 会失败
+    //   await tokens[0].setTransferReturnFalse(true);
+    //   await expect(
+    //     smartpool.updateWeight(tokens[0].address, constants.WeiPerEther)
+    //   ).to.be.revertedWith("ERR_ERC20_FALSE");
+    // });
+
+    it("Updating down while not having enough pool tokens should fail", async () => {
+      const balance = await smartpool.balanceOf(account);
+      console.log("balance is:",balance)
+      await smartpool.transfer(account2, balance);
+
       await expect(
         smartpool.updateWeight(tokens[0].address, constants.WeiPerEther)
-      ).to.be.revertedWith("ERR_ERC20_FALSE");
+      ).to.be.revertedWith("ERR_INSUFFICIENT_BAL");
     });
-
-  //   it("Updating down while not having enough pool tokens should fail", async () => {
-  //     const balance = await smartpool.balanceOf(account);
-  //     await smartpool.transfer(account2, balance);
-
-  //     await expect(
-  //       smartpool.updateWeight(tokens[0].address, constants.WeiPerEther)
-  //     ).to.be.revertedWith("ERR_INSUFFICIENT_BAL");
-  //   });
 
   //   it("Updating up should work", async () => {
   //     const weightBefore = await smartpool.getDenormalizedWeight(tokens[0].address);
