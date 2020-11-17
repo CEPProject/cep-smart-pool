@@ -74,6 +74,7 @@ describe("Advanced Pool Functionality", function () {
 
   describe("updateWeight()", async () => {
     it("Updating the weigth from a non controller should fail", async () => {
+      // 非管理员不能更新 比例
       smartpool = smartpool.connect(signers[1]);
       await expect(
         smartpool.updateWeight(tokens[0].address, constants.WeiPerEther)

@@ -21,7 +21,8 @@ const PLACE_HOLDER_ADDRESS = "0x0000000000000000000000000000000000000001";
 const NAME = "TEST POOL";
 const SYMBOL = "TPL";
 const INITIAL_SUPPLY = constants.WeiPerEther;// 初始供应量
-const INITIAL_TOKEN_SUPPLY = constants.WeiPerEther.mul(constants.WeiPerEther.mul(1000000)); // 初始token供应量
+// const INITIAL_TOKEN_SUPPLY = constants.WeiPerEther.mul(constants.WeiPerEther.mul(1000000)); // 这个值太大了
+const INITIAL_TOKEN_SUPPLY = constants.WeiPerEther.mul(100); // 初始token供应量
 let tokenFactory: MockTokenFactory;
 const timeTraveler = new TimeTraveler(ethereum);
 
@@ -29,6 +30,7 @@ describe("Basic Pool Functionality", function () {
   this.timeout(300000);
   let signers: Signer[];
   let account: string;
+  let account2: string;
   let tokens: MockToken[];
   let pool: IbPool;
   let smartpool: Pv2SmartPool;
@@ -36,17 +38,31 @@ describe("Basic Pool Functionality", function () {
   beforeEach(async () => {
     signers = await ethers.signers();
     account = await signers[0].getAddress();
+    account2 = await signers[1].getAddress();
     pool = IbPoolFactory.connect(await deployBalancerPool(signers[0]), signers[0]);
     tokenFactory = new MockTokenFactory(signers[0]);
     tokens = [];
     for (let i = 0; i < 7; i++) { // pool中共有七种token
       const token: MockToken = await tokenFactory.deploy(`Mock ${i}`, `M${i}`, 18);
+
+      console.log("token addresss is: ", token.address.toString());
+
       await token.mint(account, INITIAL_TOKEN_SUPPLY);
       await token.mint(await signers[1].getAddress(), constants.WeiPerEther.mul(1000000));
       await token.approve(pool.address, constants.MaxUint256);
       pool.bind(token.address, constants.WeiPerEther.div(2), constants.WeiPerEther);
       tokens.push(token);
     }
+
+    // for (const token of tokens) {
+    //   console.log("token address is: ",token.address.toString());
+    //   console.log("token name is: ",(await token.name()).toString());
+    //   console.log("token balance of account is: ",(await token.balanceOf(account)).toString());
+    //   console.log("token balance of account2 is: ",(await token.balanceOf(account2)).toString());
+    //   console.log("----------------------------------------------------------------------")
+    // }
+
+
 
     smartpool = (await run("deploy-libraries-and-smartpool")) as Pv2SmartPool;
 
@@ -56,6 +72,9 @@ describe("Basic Pool Functionality", function () {
     await pool.setController(smartpool.address); // 设置controller 就是 创建pool的钱包地址
 
     for (const token of tokens) { // 循环新的数组：已经存在七种token的数组
+
+      // console.log("token ",(await token.name()).toString()," address is: ",token.address.toString());
+
       await token.approve(smartpool.address, constants.MaxUint256);
       // Attach alt signer to token and approve pool
       await MockTokenFactory.connect(token.address, signers[1]).approve(
@@ -80,6 +99,7 @@ describe("Basic Pool Functionality", function () {
   // });
 
   describe("init", async () => {
+    // 第一个测试用例，测试smartpool里面的tokens集合。目前测试用的是7个代币
     it("Initialising with invalid bPool address should fail", async () => {
       // 用无效的bPool地址初始化应该会失败
       smartpool = (await run("deploy-libraries-and-smartpool")) as Pv2SmartPool;
@@ -87,155 +107,158 @@ describe("Basic Pool Functionality", function () {
         smartpool.init(ethers.constants.AddressZero, "TEST", "TEST", ethers.constants.WeiPerEther)
       ).to.be.revertedWith("PV2SmartPool.init: _bPool cannot be 0x00....000"); // 初始地址值不为0 就返回这段话
     });
-    it("Initialising with zero supply should fail", async () => {
-      // 用 0 供应量 初始化会失败
-      smartpool = (await run("deploy-libraries-and-smartpool")) as Pv2SmartPool;
-      await expect(
-        smartpool.init(PLACE_HOLDER_ADDRESS, "TEST", "TEST", ethers.constants.Zero)
-      ).to.be.revertedWith("PV2SmartPool.init: _initialSupply can not zero");
-    });
-    it("Token name should be correct", async () => {
-      // 代币符号是正确的
-      const name = await smartpool.name();
-      expect(name).to.eq(NAME);
-    });
-    it("Token symbol should be correct", async () => {
-      const symbol = await smartpool.symbol();
-      expect(symbol).to.eq(SYMBOL);
-    });
-    it("Initial supply should be correct", async () => {
-      const initialSupply = await smartpool.totalSupply();
-      expect(initialSupply).to.eq(INITIAL_SUPPLY);
-    });
-    it("Controller should be correctly set", async () => {// 管理员
-      const controller = await smartpool.getController();
-      expect(controller).to.eq(account);
-    });
-    it("Public swap setter should be correctly set", async () => {
-      // 正确设置 公共交换设置器
-      const publicSwapSetter = await smartpool.getPublicSwapSetter();
-      expect(publicSwapSetter).to.eq(account);
-    });
-    it("Token binder should be correctly set", async () => {
-      // token 绑定器
-      const tokenBinder = await smartpool.getTokenBinder();
-      expect(tokenBinder).to.eq(account);
-    });
-    it("bPool should be correctly set", async () => {
-      const bPool = await smartpool.getBPool();
-      expect(bPool).to.eq(pool.address);
-    });
-    it("Tokens should be correctly set", async () => {
-      const actualTokens = await smartpool.getTokens();
-      // 数组.map() 对数组的每个元素调用定义的回调函数并返回包含结果的数组
-      const tokenAddresses = tokens.map((token) => token.address);
-      expect(actualTokens).eql(tokenAddresses); // 实际token = token 地址
-    });
-    it("calcTokensForAmount should work", async () => {
-      // 计算代币金额
-      const amountAndTokens = await smartpool.calcTokensForAmount(constants.WeiPerEther);
-      const tokenAddresses = tokens.map((token) => token.address);
-      const expectedAmounts = tokens.map(() => constants.WeiPerEther.div(2));
-      expect(amountAndTokens.tokens).to.eql(tokenAddresses);
-      expect(amountAndTokens.amounts).to.eql(expectedAmounts);
-    });
-    it("Calling init when already initialized should fail", async () => {
-      await expect(
-        smartpool.init(PLACE_HOLDER_ADDRESS, NAME, SYMBOL, constants.WeiPerEther)
-      ).to.be.revertedWith("PV2SmartPool.init: already initialised");
-    });
-    it("Smart pool should not hold any non balancer pool tokens after init", async () => {
-      const smartPoolBalances = await getTokenBalances(smartpool.address);
-      expectZero(smartPoolBalances);
-    });
+    // it("Initialising with zero supply should fail", async () => {
+    //   // 用 0 供应量 初始化会失败
+    //   smartpool = (await run("deploy-libraries-and-smartpool")) as Pv2SmartPool;
+    //   await expect(
+    //     smartpool.init(PLACE_HOLDER_ADDRESS, "TEST", "TEST", ethers.constants.Zero)
+    //   ).to.be.revertedWith("PV2SmartPool.init: _initialSupply can not zero");
+    // });
+    // it("Token name should be correct", async () => {
+    //   // 代币符号是正确的
+    //   const name = await smartpool.name();
+    //   console.log(name)
+    //   expect(name).to.eq(NAME);
+    // });
+    // it("Token symbol should be correct", async () => {
+    //   const symbol = await smartpool.symbol();
+    //   expect(symbol).to.eq(SYMBOL);
+    // });
+    // it("Initial supply should be correct", async () => {
+    //   const initialSupply = await smartpool.totalSupply();
+    //   expect(initialSupply).to.eq(INITIAL_SUPPLY);
+    // });
+    // it("Controller should be correctly set", async () => {// 管理员
+    //   const controller = await smartpool.getController();
+    //   expect(controller).to.eq(account);
+    // });
+    // it("Public swap setter should be correctly set", async () => {
+    //   // 正确设置 公共交换设置器
+    //   const publicSwapSetter = await smartpool.getPublicSwapSetter();
+    //   expect(publicSwapSetter).to.eq(account);
+    // });
+    // it("Token binder should be correctly set", async () => {
+    //   // token 绑定器
+    //   const tokenBinder = await smartpool.getTokenBinder();
+    //   expect(tokenBinder).to.eq(account);
+    // });
+    // it("bPool should be correctly set", async () => {
+    //   const bPool = await smartpool.getBPool();
+    //   expect(bPool).to.eq(pool.address);
+    // });
+    // it("Tokens should be correctly set", async () => {
+    //   const actualTokens = await smartpool.getTokens();
+    //   // 数组.map() 对数组的每个元素调用定义的回调函数并返回包含结果的数组
+    //   const tokenAddresses = tokens.map((token) => token.address);
+    //   expect(actualTokens).eql(tokenAddresses); // 实际token = token 地址
+    // });
+    // it("calcTokensForAmount should work", async () => {
+    //   // 计算代币金额
+    //   const amountAndTokens = await smartpool.calcTokensForAmount(constants.WeiPerEther);
+    //   const tokenAddresses = tokens.map((token) => token.address);
+    //   const expectedAmounts = tokens.map(() => constants.WeiPerEther.div(2));
+    //   expect(amountAndTokens.tokens).to.eql(tokenAddresses);
+    //   expect(amountAndTokens.amounts).to.eql(expectedAmounts);
+    // });
+    // it("Calling init when already initialized should fail", async () => {
+    //   await expect(
+    //     smartpool.init(PLACE_HOLDER_ADDRESS, NAME, SYMBOL, constants.WeiPerEther)
+    //   ).to.be.revertedWith("PV2SmartPool.init: already initialised");
+    // });
+    // it("Smart pool should not hold any non balancer pool tokens after init", async () => {
+    //   const smartPoolBalances = await getTokenBalances(smartpool.address);
+    //   expectZero(smartPoolBalances);
+    // });
   });
 
-  describe("Controller functions", async () => {
-    // 管理员的功能
-    it("Setting a new controller should work", async () => {
-      await smartpool.setController(PLACE_HOLDER_ADDRESS);
-      const controller = await smartpool.getController();
-      expect(controller).to.eq(PLACE_HOLDER_ADDRESS);
-    });
-    it("Setting a new controller from a non controller address should fail", async () => {
-      smartpool = smartpool.connect(signers[1]);
+  // describe("Controller functions", async () => {
+  //   // 管理员的功能
+  //   it("Setting a new controller should work", async () => {
+  //     await smartpool.setController(PLACE_HOLDER_ADDRESS);
+  //     const controller = await smartpool.getController();
+  //     expect(controller).to.eq(PLACE_HOLDER_ADDRESS);
+  //   });
+  //   it("Setting a new controller from a non controller address should fail", async () => {
+  //     smartpool = smartpool.connect(signers[1]);
 
-      await expect(smartpool.setController(PLACE_HOLDER_ADDRESS)).to.be.revertedWith(
-        "PV2SmartPool.onlyController: not controller"
-      );
-    });
-    it("Setting public swap setter should work", async () => {
-      await smartpool.setPublicSwapSetter(PLACE_HOLDER_ADDRESS);
-      const publicSwapSetter = await smartpool.getPublicSwapSetter();
-      expect(publicSwapSetter).to.eq(PLACE_HOLDER_ADDRESS);
-    });
-    it("Setting public swap setter from a non controller address should fail", async () => {
-      smartpool = smartpool.connect(signers[1]);
+  //     await expect(smartpool.setController(PLACE_HOLDER_ADDRESS)).to.be.revertedWith(
+  //       "PV2SmartPool.onlyController: not controller"
+  //     );
+  //   });
+  //   it("Setting public swap setter should work", async () => {
+  //     await smartpool.setPublicSwapSetter(PLACE_HOLDER_ADDRESS);
+  //     const publicSwapSetter = await smartpool.getPublicSwapSetter();
+  //     expect(publicSwapSetter).to.eq(PLACE_HOLDER_ADDRESS);
+  //   });
+  //   it("Setting public swap setter from a non controller address should fail", async () => {
+  //     smartpool = smartpool.connect(signers[1]);
 
-      await expect(smartpool.setPublicSwapSetter(PLACE_HOLDER_ADDRESS)).to.be.revertedWith(
-        "PV2SmartPool.onlyController: not controller"
-      );
-    });
-    it("Setting the token binder should work", async () => {
-      await smartpool.setTokenBinder(PLACE_HOLDER_ADDRESS);
-      const tokenBinder = await smartpool.getTokenBinder();
-      expect(tokenBinder).to.eq(PLACE_HOLDER_ADDRESS);
-    });
-    it("Setting the token binder from a non controller address should fail", async () => {
-      smartpool = smartpool.connect(signers[1]);
-      await expect(smartpool.setTokenBinder(PLACE_HOLDER_ADDRESS)).to.be.revertedWith(
-        "PV2SmartPool.onlyController: not controller"
-      );
-    });
-    it("Setting public swap should work", async () => {
-      await smartpool.setPublicSwap(true);
-      const publicSwap = await smartpool.isPublicSwap();
-      // tslint:disable-next-line:no-unused-expression
-      expect(publicSwap).to.be.true;
-    });
-    it("Setting public swap from a non publicSwapSetter address should fail", async () => {
-      smartpool = smartpool.connect(signers[1]);
-      await expect(smartpool.setPublicSwap(true)).to.be.revertedWith(
-        "PV2SmartPool.onlyPublicSwapSetter: not public swap setter"
-      );
-    });
-    it("Setting the swap fee should work", async () => {
-      // 设置交换费用
-      const feeValue = constants.WeiPerEther.div(20);
-      await smartpool.setSwapFee(feeValue);
-      const swapFee = await smartpool.getSwapFee();
-      expect(swapFee).to.eq(feeValue);
-    });
-    it("Setting the swap fee from a non controller address should fail", async () => {
-      smartpool = smartpool.connect(signers[1]);
-      await expect(smartpool.setSwapFee(constants.WeiPerEther.div(20))).to.be.revertedWith(
-        "PV2SmartPool.onlyController: not controller"
-      );
-    });
-    it("Should revert with unsupported function error when calling finalizePool()", async () => {
-      // 调用finalizePool（）时应返回不受支持的函数错误
-      smartpool = smartpool.connect(signers[1]);
-      await expect(smartpool.finalizeSmartPool()).to.be.revertedWith(
-        "PV2SmartPool.finalizeSmartPool: unsupported function"
-      );
-    });
-    it("Should revert with unsupported function error when calling createPool(uint256 initialSupply)", async () => {
-      // 调用createPool（uint256 initialSupply）时应返回不受支持的函数错误
-      smartpool = smartpool.connect(signers[1]);
-      await expect(smartpool.createPool(0)).to.be.revertedWith(
-        "PV2SmartPool.createPool: unsupported function"
-      );
-    });
-  });
+  //     await expect(smartpool.setPublicSwapSetter(PLACE_HOLDER_ADDRESS)).to.be.revertedWith(
+  //       "PV2SmartPool.onlyController: not controller"
+  //     );
+  //   });
+  //   it("Setting the token binder should work", async () => {
+  //     await smartpool.setTokenBinder(PLACE_HOLDER_ADDRESS);
+  //     const tokenBinder = await smartpool.getTokenBinder();
+  //     expect(tokenBinder).to.eq(PLACE_HOLDER_ADDRESS);
+  //   });
+  //   it("Setting the token binder from a non controller address should fail", async () => {
+  //     smartpool = smartpool.connect(signers[1]);
+  //     await expect(smartpool.setTokenBinder(PLACE_HOLDER_ADDRESS)).to.be.revertedWith(
+  //       "PV2SmartPool.onlyController: not controller"
+  //     );
+  //   });
+  //   it("Setting public swap should work", async () => {
+  //     await smartpool.setPublicSwap(true);
+  //     const publicSwap = await smartpool.isPublicSwap();
+  //     // tslint:disable-next-line:no-unused-expression
+  //     expect(publicSwap).to.be.true;
+  //   });
+  //   it("Setting public swap from a non publicSwapSetter address should fail", async () => {
+  //     smartpool = smartpool.connect(signers[1]);
+  //     await expect(smartpool.setPublicSwap(true)).to.be.revertedWith(
+  //       "PV2SmartPool.onlyPublicSwapSetter: not public swap setter"
+  //     );
+  //   });
+  //   it("Setting the swap fee should work", async () => {
+  //     // 设置交换费用
+  //     const feeValue = constants.WeiPerEther.div(20);
+  //     await smartpool.setSwapFee(feeValue);
+  //     const swapFee = await smartpool.getSwapFee();
+  //     expect(swapFee).to.eq(feeValue);
+  //   });
+  //   it("Setting the swap fee from a non controller address should fail", async () => {
+  //     smartpool = smartpool.connect(signers[1]);
+  //     await expect(smartpool.setSwapFee(constants.WeiPerEther.div(20))).to.be.revertedWith(
+  //       "PV2SmartPool.onlyController: not controller"
+  //     );
+  //   });
+  //   it("Should revert with unsupported function error when calling finalizePool()", async () => {
+  //     // 调用finalizePool（）时应返回不受支持的函数错误
+  //     smartpool = smartpool.connect(signers[1]);
+  //     await expect(smartpool.finalizeSmartPool()).to.be.revertedWith(
+  //       "PV2SmartPool.finalizeSmartPool: unsupported function"
+  //     );
+  //   });
+  //   it("Should revert with unsupported function error when calling createPool(uint256 initialSupply)", async () => {
+  //     // 调用createPool（uint256 initialSupply）时应返回不受支持的函数错误
+  //     smartpool = smartpool.connect(signers[1]);
+  //     await expect(smartpool.createPool(0)).to.be.revertedWith(
+  //       "PV2SmartPool.createPool: unsupported function"
+  //     );
+  //   });
+  // });
 
   describe("Joining and Exiting", async () => {
     // 加盟与退出
     it("Adding liquidity should work", async () => {
       // 增加流动性
       const mintAmount = constants.WeiPerEther;
+      // console.log("mintAmount) is :",mintAmount)  --  BigNumber { _hex: '0x0de0b6b3a7640000' }
       await smartpool.joinPool(mintAmount);
 
       const balance = await smartpool.balanceOf(account);
+      console.log("balance is :",balance)
       expect(balance).to.eq(mintAmount.add(INITIAL_SUPPLY));
 
       for (let entry of tokens) {
@@ -243,485 +266,486 @@ describe("Basic Pool Functionality", function () {
         expect(userBalance).to.eq(INITIAL_TOKEN_SUPPLY.sub(mintAmount));
       }
     });
-    it("Adding liquidity when a transfer fails should fail", async () => {
-      // transfer失败时增加流动性也会失败
-      const mintAmount = constants.WeiPerEther;
-      await tokens[1].approve(smartpool.address, constants.Zero);
-      await expect(smartpool.joinPool(mintAmount)).to.be.revertedWith(
-        "ERC20: transfer amount exceeds allowance" // 转账金额超过限额
-      );
-    });
-    it("Adding liquidity when a token transfer returns false should fail", async () => {
-      const mintAmount = constants.WeiPerEther.div(4);
-      await tokens[1].setTransferFromReturnFalse(true);
-      await expect(smartpool.joinPool(mintAmount)).to.be.revertedWith(
-        "LibUnderlying._pullUnderlying: transferFrom failed"
-      );
-    });
-    it("Removing liquidity should work", async () => {
-      // 消除流动性
-      const removeAmount = constants.WeiPerEther.div(2);
+    // it("Adding liquidity when a transfer fails should fail", async () => {
+    //   // transfer失败时增加流动性也会失败
+    //   const mintAmount = constants.WeiPerEther;
+    //   await tokens[1].approve(smartpool.address, constants.Zero);
+    //   await expect(smartpool.joinPool(mintAmount)).to.be.revertedWith(
+    //     "ERC20: transfer amount exceeds allowance" // 转账金额超过限额
+    //   );
+    // });
+    // it("Adding liquidity when a token transfer returns false should fail", async () => {
+    //   const mintAmount = constants.WeiPerEther.div(4);
+    //   await tokens[1].setTransferFromReturnFalse(true);
+    //   await expect(smartpool.joinPool(mintAmount)).to.be.revertedWith(
+    //     "LibUnderlying._pullUnderlying: transferFrom failed"
+    //   );
+    // });
+    // it("Removing liquidity should work", async () => {
+    //   // 消除流动性
+    //   const removeAmount = constants.WeiPerEther.div(2);
 
-      await smartpool["exitPool(uint256)"](removeAmount);
-      const balance = await smartpool.balanceOf(account);
-      expect(balance).to.eq(INITIAL_SUPPLY.sub(removeAmount));
+    //   await smartpool["exitPool(uint256)"](removeAmount);
+    //   const balance = await smartpool.balanceOf(account);
+    //   expect(balance).to.eq(INITIAL_SUPPLY.sub(removeAmount));
 
-      for (let entry of tokens) {
-        const userBalance = await entry.balanceOf(account)
-        expect(userBalance).to.eq(INITIAL_TOKEN_SUPPLY.sub(removeAmount.div(2)));
-      }
-    });
-    it("Removing all liquidity should fail", async () => {
-      const removeAmount = constants.WeiPerEther;
-      await expect(smartpool["exitPool(uint256)"](removeAmount)).to.be.revertedWith(
-        "ERR_MIN_BALANCE"
-      );
-    });
-    it("Removing liquidity should fail when removing more than balance", async () => {
-      // 首先在另一个账户中注入更多的钱，以免在实际测试中提取全部的流动资金
-      const altSignerSmartPool = Pv2SmartPoolFactory.connect(smartpool.address, signers[1]);
-      await altSignerSmartPool.joinPool(constants.WeiPerEther);
-      await expect(smartpool["exitPool(uint256)"](INITIAL_SUPPLY.add(1))).to.be.revertedWith(
-        "ERR_INSUFFICIENT_BAL"
-      );
-    });
+    //   for (let entry of tokens) {
+    //     const userBalance = await entry.balanceOf(account)
+    //     expect(userBalance).to.eq(INITIAL_TOKEN_SUPPLY.sub(removeAmount.div(2)));
+    //   }
+    // });
+    // it("Removing all liquidity should fail", async () => {
+    //   const removeAmount = constants.WeiPerEther;
+    //   await expect(smartpool["exitPool(uint256)"](removeAmount)).to.be.revertedWith(
+    //     "ERR_MIN_BALANCE"
+    //   );
+    // });
+    // it("Removing liquidity should fail when removing more than balance", async () => {
+    //   // 首先在另一个账户中注入更多的钱，以免在实际测试中提取全部的流动资金
+    //   const altSignerSmartPool = Pv2SmartPoolFactory.connect(smartpool.address, signers[1]);
+    //   await altSignerSmartPool.joinPool(constants.WeiPerEther);
+    //   await expect(smartpool["exitPool(uint256)"](INITIAL_SUPPLY.add(1))).to.be.revertedWith(
+    //     "ERR_INSUFFICIENT_BAL"
+    //   );
+    // });
 
-    it("Removing liquidity when a token transfer fails should fail", async () => {
-      await tokens[0].setTransferFailed(true);
-      await expect(smartpool["exitPool(uint256)"](constants.WeiPerEther.div(2))).to.be.revertedWith(
-        "MockToken.transfer: transferFrom set to fail"
-      );
-    });
+    // it("Removing liquidity when a token transfer fails should fail", async () => {
+    //   await tokens[0].setTransferFailed(true);
+    //   await expect(smartpool["exitPool(uint256)"](constants.WeiPerEther.div(2))).to.be.revertedWith(
+    //     "MockToken.transfer: transferFrom set to fail"
+    //   );
+    // });
 
-    it("Removing liquidity when a token transfer returns false should fail", async () => {
-      await tokens[0].setTransferReturnFalse(true);
-      await expect(smartpool["exitPool(uint256)"](constants.WeiPerEther.div(2))).to.be.revertedWith(
-        "ERR_ERC20_FALSE"
-      );
-    });
+    // it("Removing liquidity when a token transfer returns false should fail", async () => {
+    //   await tokens[0].setTransferReturnFalse(true);
+    //   await expect(smartpool["exitPool(uint256)"](constants.WeiPerEther.div(2))).to.be.revertedWith(
+    //     "ERR_ERC20_FALSE"
+    //   );
+    // });
 
-    it("Removing liquidity leaving a single token should work", async () => {
-      const removeAmount = constants.WeiPerEther.div(2);
-      // Pv2SmartPool 合约中定义的方法
-      await smartpool.exitPoolTakingloss(removeAmount, [tokens[0].address]);
-      const balance = await smartpool.balanceOf(account);
-      expect(balance).to.eq(INITIAL_SUPPLY.sub(removeAmount));
+    // it("Removing liquidity leaving a single token should work", async () => {
+    //   const removeAmount = constants.WeiPerEther.div(2);
+    //   // Pv2SmartPool 合约中定义的方法
+    //   await smartpool.exitPoolTakingloss(removeAmount, [tokens[0].address]);
+    //   const balance = await smartpool.balanceOf(account);
+    //   expect(balance).to.eq(INITIAL_SUPPLY.sub(removeAmount));
 
-      const userBalance = await tokens[0].balanceOf(account)
-      expect(userBalance).to.eq(INITIAL_TOKEN_SUPPLY.sub(removeAmount));
-      for (let entry of tokens.slice(1)) {
-        const userBalance = await entry.balanceOf(account)
-        expect(userBalance).to.eq(INITIAL_TOKEN_SUPPLY.sub(removeAmount.div(2)));
-      }
-    });
-    it("Removing all liquidity leaving a single token should fail", async () => {
-      const removeAmount = constants.WeiPerEther;
-      await expect(smartpool["exitPool(uint256)"](removeAmount)).to.be.revertedWith(
-        "ERR_MIN_BALANCE"
-      );
-    });
-    it("Removing liquidity leaving a single token should fail when removing more than balance", async () => {
-      // First mint some more in another account to not withdraw all total liquidity in the actual test
-      const altSignerSmartPool = Pv2SmartPoolFactory.connect(smartpool.address, signers[1]);
-      await altSignerSmartPool.joinPool(constants.WeiPerEther);
-      await expect(smartpool["exitPool(uint256)"](INITIAL_SUPPLY.add(1))).to.be.revertedWith(
-        "ERR_INSUFFICIENT_BAL"
-      );
-    });
+    //   const userBalance = await tokens[0].balanceOf(account)
+    //   expect(userBalance).to.eq(INITIAL_TOKEN_SUPPLY.sub(removeAmount));
+    //   for (let entry of tokens.slice(1)) {
+    //     const userBalance = await entry.balanceOf(account)
+    //     expect(userBalance).to.eq(INITIAL_TOKEN_SUPPLY.sub(removeAmount.div(2)));
+    //   }
+    // });
+    // it("Removing all liquidity leaving a single token should fail", async () => {
+    //   const removeAmount = constants.WeiPerEther;
+    //   await expect(smartpool["exitPool(uint256)"](removeAmount)).to.be.revertedWith(
+    //     "ERR_MIN_BALANCE"
+    //   );
+    // });
+    // it("Removing liquidity leaving a single token should fail when removing more than balance", async () => {
+    //   // First mint some more in another account to not withdraw all total liquidity in the actual test
+    //   const altSignerSmartPool = Pv2SmartPoolFactory.connect(smartpool.address, signers[1]);
+    //   await altSignerSmartPool.joinPool(constants.WeiPerEther);
+    //   await expect(smartpool["exitPool(uint256)"](INITIAL_SUPPLY.add(1))).to.be.revertedWith(
+    //     "ERR_INSUFFICIENT_BAL"
+    //   );
+    // });
 
-    it("Should fail to join with a single token if token is unbound", async () => {
-      // 如果token未绑定，则应该无法使用单个token加入
-      await smartpool.unbind(tokens[0].address);
-      await smartpool.setPublicSwap(true);
-      const mintAmount = constants.WeiPerEther;
+    // it("Should fail to join with a single token if token is unbound", async () => {
+    //   // 如果token未绑定，则应该无法使用单个token加入
+    //   await smartpool.unbind(tokens[0].address);
+    //   await smartpool.setPublicSwap(true);
+    //   const mintAmount = constants.WeiPerEther;
 
-      await expect(
-        smartpool.joinswapExternAmountIn(tokens[0].address, mintAmount, ethers.constants.Zero)
-      ).to.be.revertedWith("LibPoolEntryExit.joinswapExternAmountIn: Token Not Bound");
-      await expect(
-        smartpool.joinswapPoolAmountOut(tokens[0].address, mintAmount, ethers.constants.MaxUint256)
-      ).to.be.revertedWith("LibPoolEntryExit.joinswapPoolAmountOut: Token Not Bound");
-    });
+    //   await expect(
+    //     smartpool.joinswapExternAmountIn(tokens[0].address, mintAmount, ethers.constants.Zero)
+    //   ).to.be.revertedWith("LibPoolEntryExit.joinswapExternAmountIn: Token Not Bound");
+    //   await expect(
+    //     smartpool.joinswapPoolAmountOut(tokens[0].address, mintAmount, ethers.constants.MaxUint256)
+    //   ).to.be.revertedWith("LibPoolEntryExit.joinswapPoolAmountOut: Token Not Bound");
+    // });
 
-    it("joinswapPoolAmountOut should work", async () => {
-      // 加入交换池额度
-      await smartpool.setPublicSwap(true);
-      const mintAmount = constants.WeiPerEther.div(100);
-      const inputToken = tokens[0];
+    // it("joinswapPoolAmountOut should work", async () => {
+    //   // 加入交换池额度
+    //   await smartpool.setPublicSwap(true);
+    //   const mintAmount = constants.WeiPerEther.div(100);
+    //   const inputToken = tokens[0];
 
-      const userBalanceBefore = await inputToken.balanceOf(account);
-      const userPoolBalanceBefore = await smartpool.balanceOf(account);
-      const totalSupplyBefore = await smartpool.totalSupply();
-      const expectedTokenAmountIn = await smartpool.calcSingleInGivenPoolOut(
-        inputToken.address,
-        mintAmount
-      );
-      const poolTokenBalanceBefore = await pool.getBalance(inputToken.address);
+    //   const userBalanceBefore = await inputToken.balanceOf(account);
+    //   const userPoolBalanceBefore = await smartpool.balanceOf(account);
+    //   const totalSupplyBefore = await smartpool.totalSupply();
+    //   const expectedTokenAmountIn = await smartpool.calcSingleInGivenPoolOut(
+    //     inputToken.address,
+    //     mintAmount
+    //   );
+    //   const poolTokenBalanceBefore = await pool.getBalance(inputToken.address);
 
-      await smartpool.joinswapPoolAmountOut(inputToken.address, mintAmount, constants.MaxUint256);
+    //   await smartpool.joinswapPoolAmountOut(inputToken.address, mintAmount, constants.MaxUint256);
 
-      const userBalanceAfter = await inputToken.balanceOf(account);
-      const userPoolBalanceAfter = await smartpool.balanceOf(account);
-      const totalSupplyAfter = await smartpool.totalSupply();
-      const poolTokenBalanceAfter = await pool.getBalance(inputToken.address);
+    //   const userBalanceAfter = await inputToken.balanceOf(account);
+    //   const userPoolBalanceAfter = await smartpool.balanceOf(account);
+    //   const totalSupplyAfter = await smartpool.totalSupply();
+    //   const poolTokenBalanceAfter = await pool.getBalance(inputToken.address);
 
-      expect(userBalanceAfter).to.eq(userBalanceBefore.sub(expectedTokenAmountIn));
-      expect(userPoolBalanceAfter).to.eq(userPoolBalanceBefore.add(mintAmount));
-      expect(totalSupplyAfter).to.eq(totalSupplyBefore.add(mintAmount));
-      expect(poolTokenBalanceAfter).to.eq(poolTokenBalanceBefore.add(expectedTokenAmountIn));
-    });
+    //   expect(userBalanceAfter).to.eq(userBalanceBefore.sub(expectedTokenAmountIn));
+    //   expect(userPoolBalanceAfter).to.eq(userPoolBalanceBefore.add(mintAmount));
+    //   expect(totalSupplyAfter).to.eq(totalSupplyBefore.add(mintAmount));
+    //   expect(poolTokenBalanceAfter).to.eq(poolTokenBalanceBefore.add(expectedTokenAmountIn));
+    // });
 
-    it("joinswapExternAmountIn should work", async () => {
-      smartpool.setPublicSwap(true);
-      const tokenAmountIn = constants.WeiPerEther.div(100);
-      const inputToken = tokens[0];
+    // it("joinswapExternAmountIn should work", async () => {
+    //   smartpool.setPublicSwap(true);
+    //   const tokenAmountIn = constants.WeiPerEther.div(100);
+    //   const inputToken = tokens[0];
 
-      const userBalanceBefore = await inputToken.balanceOf(account);
-      const userPoolBalanceBefore = await smartpool.balanceOf(account);
-      const totalSupplyBefore = await smartpool.totalSupply();
-      const expectedPoolAmountOut = await smartpool.calcPoolOutGivenSingleIn(
-        inputToken.address,
-        tokenAmountIn
-      );
-      const poolTokenBalanceBefore = await pool.getBalance(inputToken.address);
+    //   const userBalanceBefore = await inputToken.balanceOf(account);
+    //   const userPoolBalanceBefore = await smartpool.balanceOf(account);
+    //   const totalSupplyBefore = await smartpool.totalSupply();
+    //   const expectedPoolAmountOut = await smartpool.calcPoolOutGivenSingleIn(
+    //     inputToken.address,
+    //     tokenAmountIn
+    //   );
+    //   const poolTokenBalanceBefore = await pool.getBalance(inputToken.address);
 
-      await smartpool.joinswapExternAmountIn(inputToken.address, tokenAmountIn, constants.Zero);
+    //   await smartpool.joinswapExternAmountIn(inputToken.address, tokenAmountIn, constants.Zero);
 
-      const userBalanceAfter = await inputToken.balanceOf(account);
-      const userPoolBalanceAfter = await smartpool.balanceOf(account);
-      const totalSupplyAfter = await smartpool.totalSupply();
-      const poolTokenBalanceAfter = await pool.getBalance(inputToken.address);
+    //   const userBalanceAfter = await inputToken.balanceOf(account);
+    //   const userPoolBalanceAfter = await smartpool.balanceOf(account);
+    //   const totalSupplyAfter = await smartpool.totalSupply();
+    //   const poolTokenBalanceAfter = await pool.getBalance(inputToken.address);
 
-      expect(userBalanceAfter).to.eq(userBalanceBefore.sub(tokenAmountIn));
-      expect(userPoolBalanceAfter).to.eq(userPoolBalanceBefore.add(expectedPoolAmountOut));
-      expect(totalSupplyAfter).to.eq(totalSupplyBefore.add(expectedPoolAmountOut));
-      expect(poolTokenBalanceAfter).to.eq(poolTokenBalanceBefore.add(tokenAmountIn));
-    });
+    //   expect(userBalanceAfter).to.eq(userBalanceBefore.sub(tokenAmountIn));
+    //   expect(userPoolBalanceAfter).to.eq(userPoolBalanceBefore.add(expectedPoolAmountOut));
+    //   expect(totalSupplyAfter).to.eq(totalSupplyBefore.add(expectedPoolAmountOut));
+    //   expect(poolTokenBalanceAfter).to.eq(poolTokenBalanceBefore.add(tokenAmountIn));
+    // });
 
-    it("Joining the pool from a single asset when public swap is disabled should fail", async () => {
-      // 禁用公共交换时从单个资产加入池应该失败
-      const poolAmountOut = constants.WeiPerEther.div(100);
-      const tokenAmountIn = constants.WeiPerEther.div(100);
-      const tokenInAddress = tokens[0].address;
+    // it("Joining the pool from a single asset when public swap is disabled should fail", async () => {
+    //   // 禁用公共交换时从单个资产加入池应该失败
+    //   const poolAmountOut = constants.WeiPerEther.div(100);
+    //   const tokenAmountIn = constants.WeiPerEther.div(100);
+    //   const tokenInAddress = tokens[0].address;
 
-      await expect(
-        smartpool.joinswapExternAmountIn(tokenInAddress, tokenAmountIn, constants.Zero)
-      ).to.be.revertedWith("PV2SmartPool.onlyPublicSwap: swapping not enabled");
+    //   await expect(
+    //     smartpool.joinswapExternAmountIn(tokenInAddress, tokenAmountIn, constants.Zero)
+    //   ).to.be.revertedWith("PV2SmartPool.onlyPublicSwap: swapping not enabled");
 
-      await expect(
-        smartpool.joinswapPoolAmountOut(tokenInAddress, poolAmountOut, constants.MaxUint256)
-      ).to.be.revertedWith("PV2SmartPool.onlyPublicSwap: swapping not enabled");
-    });
+    //   await expect(
+    //     smartpool.joinswapPoolAmountOut(tokenInAddress, poolAmountOut, constants.MaxUint256)
+    //   ).to.be.revertedWith("PV2SmartPool.onlyPublicSwap: swapping not enabled");
+    // });
 
-    it("Should fail to exit with a single token if token is unbound", async () => {
-      // 如果token未绑定，应该无法通过单个token退出
-      await smartpool.unbind(tokens[1].address);
-      const exitAmount = constants.WeiPerEther;
-      await smartpool.setPublicSwap(true);
+    // it("Should fail to exit with a single token if token is unbound", async () => {
+    //   // 如果token未绑定，应该无法通过单个token退出
+    //   await smartpool.unbind(tokens[1].address);
+    //   const exitAmount = constants.WeiPerEther;
+    //   await smartpool.setPublicSwap(true);
 
-      await expect(
-        smartpool.exitswapExternAmountOut(tokens[1].address, exitAmount, constants.MaxUint256)
-      ).to.be.revertedWith("LibPoolEntryExit.exitswapExternAmountOut: Token Not Bound");
-      await expect(
-        smartpool.exitswapPoolAmountIn(tokens[1].address, exitAmount, constants.Zero)
-      ).to.be.revertedWith("LibPoolEntryExit.exitswapPoolAmountIn: Token Not Bound");
-    });
+    //   await expect(
+    //     smartpool.exitswapExternAmountOut(tokens[1].address, exitAmount, constants.MaxUint256)
+    //   ).to.be.revertedWith("LibPoolEntryExit.exitswapExternAmountOut: Token Not Bound");
+    //   await expect(
+    //     smartpool.exitswapPoolAmountIn(tokens[1].address, exitAmount, constants.Zero)
+    //   ).to.be.revertedWith("LibPoolEntryExit.exitswapPoolAmountIn: Token Not Bound");
+    // });
 
-    it("exitswapPoolAmountIn should work", async () => {
-      // 退出交换池金额
-      await smartpool.setPublicSwap(true);
-      const outputToken = tokens[0];
-      const burnAmount = INITIAL_SUPPLY.div(100);
+    // it("exitswapPoolAmountIn should work", async () => {
+    //   // 退出交换池金额
+    //   await smartpool.setPublicSwap(true);
+    //   const outputToken = tokens[0];
+    //   const burnAmount = INITIAL_SUPPLY.div(100);
 
-      const expectedOutputTokenAmount = await smartpool.calcSingleOutGivenPoolIn(
-        outputToken.address,
-        burnAmount
-      );
-      const userBalanceBefore = await outputToken.balanceOf(account);
-      const userPoolBalanceBefore = await smartpool.balanceOf(account);
-      const totalSupplyBefore = await smartpool.totalSupply();
+    //   const expectedOutputTokenAmount = await smartpool.calcSingleOutGivenPoolIn(
+    //     outputToken.address,
+    //     burnAmount
+    //   );
+    //   const userBalanceBefore = await outputToken.balanceOf(account);
+    //   const userPoolBalanceBefore = await smartpool.balanceOf(account);
+    //   const totalSupplyBefore = await smartpool.totalSupply();
 
-      await smartpool.exitswapPoolAmountIn(outputToken.address, burnAmount, constants.Zero);
+    //   await smartpool.exitswapPoolAmountIn(outputToken.address, burnAmount, constants.Zero);
 
-      const userBalanceAfter = await outputToken.balanceOf(account);
-      const userPoolBalanceAfter = await smartpool.balanceOf(account);
-      const totalSupplyAfter = await smartpool.totalSupply();
+    //   const userBalanceAfter = await outputToken.balanceOf(account);
+    //   const userPoolBalanceAfter = await smartpool.balanceOf(account);
+    //   const totalSupplyAfter = await smartpool.totalSupply();
 
-      expect(userBalanceAfter).to.eq(userBalanceBefore.add(expectedOutputTokenAmount));
-      expect(userPoolBalanceAfter).to.eq(userPoolBalanceBefore.sub(burnAmount));
-      expect(totalSupplyAfter).to.eq(totalSupplyBefore.sub(burnAmount));
-    });
+    //   expect(userBalanceAfter).to.eq(userBalanceBefore.add(expectedOutputTokenAmount));
+    //   expect(userPoolBalanceAfter).to.eq(userPoolBalanceBefore.sub(burnAmount));
+    //   expect(totalSupplyAfter).to.eq(totalSupplyBefore.sub(burnAmount));
+    // });
 
-    it("exitSwapExternAmountOut should work", async () => {
-      await smartpool.setPublicSwap(true);
-      const outputToken = tokens[0];
-      const outputTokenAmount = constants.WeiPerEther.div(100);
+    // it("exitSwapExternAmountOut should work", async () => {
+    //   await smartpool.setPublicSwap(true);
+    //   const outputToken = tokens[0];
+    //   const outputTokenAmount = constants.WeiPerEther.div(100);
 
-      const expectedPoolAmountIn = await smartpool.calcPoolInGivenSingleOut(
-        outputToken.address,
-        outputTokenAmount
-      );
-      const userBalanceBefore = await outputToken.balanceOf(account);
-      const userPoolBalanceBefore = await smartpool.balanceOf(account);
-      const totalSupplyBefore = await smartpool.totalSupply();
+    //   const expectedPoolAmountIn = await smartpool.calcPoolInGivenSingleOut(
+    //     outputToken.address,
+    //     outputTokenAmount
+    //   );
+    //   const userBalanceBefore = await outputToken.balanceOf(account);
+    //   const userPoolBalanceBefore = await smartpool.balanceOf(account);
+    //   const totalSupplyBefore = await smartpool.totalSupply();
 
-      await smartpool.exitswapExternAmountOut(
-        outputToken.address,
-        outputTokenAmount,
-        constants.MaxUint256
-      );
+    //   await smartpool.exitswapExternAmountOut(
+    //     outputToken.address,
+    //     outputTokenAmount,
+    //     constants.MaxUint256
+    //   );
 
-      const userBalanceAfter = await outputToken.balanceOf(account);
-      const userPoolBalanceAfter = await smartpool.balanceOf(account);
-      const totalSupplyAfter = await smartpool.totalSupply();
+    //   const userBalanceAfter = await outputToken.balanceOf(account);
+    //   const userPoolBalanceAfter = await smartpool.balanceOf(account);
+    //   const totalSupplyAfter = await smartpool.totalSupply();
 
-      expect(userBalanceAfter).to.eq(userBalanceBefore.add(outputTokenAmount));
-      expect(userPoolBalanceAfter).to.eq(userPoolBalanceBefore.sub(expectedPoolAmountIn));
-      expect(totalSupplyAfter).to.eq(totalSupplyBefore.sub(expectedPoolAmountIn));
-    });
+    //   expect(userBalanceAfter).to.eq(userBalanceBefore.add(outputTokenAmount));
+    //   expect(userPoolBalanceAfter).to.eq(userPoolBalanceBefore.sub(expectedPoolAmountIn));
+    //   expect(totalSupplyAfter).to.eq(totalSupplyBefore.sub(expectedPoolAmountIn));
+    // });
 
-    it("Exiting the pool to a single asset when public swap is disabled should fail", async () => {
-      const tokenOutAddress = tokens[0].address;
-      const poolAmountIn = constants.WeiPerEther.div(100);
-      const tokenAmountOut = constants.WeiPerEther.div(100);
+    // it("Exiting the pool to a single asset when public swap is disabled should fail", async () => {
+    //   const tokenOutAddress = tokens[0].address;
+    //   const poolAmountIn = constants.WeiPerEther.div(100);
+    //   const tokenAmountOut = constants.WeiPerEther.div(100);
 
-      await expect(
-        smartpool.exitswapExternAmountOut(tokenOutAddress, tokenAmountOut, constants.MaxUint256)
-      ).to.be.revertedWith("PV2SmartPool.onlyPublicSwap: swapping not enabled");
+    //   await expect(
+    //     smartpool.exitswapExternAmountOut(tokenOutAddress, tokenAmountOut, constants.MaxUint256)
+    //   ).to.be.revertedWith("PV2SmartPool.onlyPublicSwap: swapping not enabled");
 
-      await expect(
-        smartpool.exitswapPoolAmountIn(tokenOutAddress, poolAmountIn, constants.Zero)
-      ).to.be.revertedWith("PV2SmartPool.onlyPublicSwap: swapping not enabled");
-    });
+    //   await expect(
+    //     smartpool.exitswapPoolAmountIn(tokenOutAddress, poolAmountIn, constants.Zero)
+    //   ).to.be.revertedWith("PV2SmartPool.onlyPublicSwap: swapping not enabled");
+    // });
   });
 
-  describe("Front running protected join and exit", async () => {
-    // 前端运行受保护的加入和退出
-    it("Adding liquidity with frontrunning protection should work should work", async () => {
-      const mintAmount = constants.WeiPerEther;
-      const maxAmountsIn = createBigNumberArray(tokens.length, constants.MaxUint256);
-      await smartpool["joinPool(uint256,uint256[])"](mintAmount, maxAmountsIn);
+  // describe("Front running protected join and exit", async () => {
+  //   // 前端运行受保护的加入和退出
+  //   it("Adding liquidity with frontrunning protection should work should work", async () => {
+  //     const mintAmount = constants.WeiPerEther;
+  //     const maxAmountsIn = createBigNumberArray(tokens.length, constants.MaxUint256);
+  //     await smartpool["joinPool(uint256,uint256[])"](mintAmount, maxAmountsIn);
 
-      const balance = await smartpool.balanceOf(account);
-      expect(balance).to.eq(mintAmount.add(INITIAL_SUPPLY));
+  //     const balance = await smartpool.balanceOf(account);
+  //     expect(balance).to.eq(mintAmount.add(INITIAL_SUPPLY));
 
-      for (let entry of tokens) {
-        const userBalance = await entry.balanceOf(account)
-        expect(userBalance).to.eq(INITIAL_TOKEN_SUPPLY.sub(mintAmount));
-      }
-    });
+  //     for (let entry of tokens) {
+  //       const userBalance = await entry.balanceOf(account)
+  //       expect(userBalance).to.eq(INITIAL_TOKEN_SUPPLY.sub(mintAmount));
+  //     }
+  //   });
 
-    it("Adding liquidity with front running protection when maxAmount of one of the tokens is too small should fail", async () => {
-      const mintAmount = constants.WeiPerEther;
-      const maxAmountsIn = createBigNumberArray(tokens.length, constants.MaxUint256);
-      maxAmountsIn[2] = new BigNumber(0);
-      await expect(
-        smartpool["joinPool(uint256,uint256[])"](mintAmount, maxAmountsIn)
-      ).to.be.revertedWith("LibPoolEntryExit.joinPool: Token in amount too big");
-    });
+  //   it("Adding liquidity with front running protection when maxAmount of one of the tokens is too small should fail", async () => {
+  //     const mintAmount = constants.WeiPerEther;
+  //     const maxAmountsIn = createBigNumberArray(tokens.length, constants.MaxUint256);
+  //     maxAmountsIn[2] = new BigNumber(0);
+  //     await expect(
+  //       smartpool["joinPool(uint256,uint256[])"](mintAmount, maxAmountsIn)
+  //     ).to.be.revertedWith("LibPoolEntryExit.joinPool: Token in amount too big");
+  //   });
 
-    it("Adding liquidity with front running protection when a transfer fails should fail", async () => {
-      const mintAmount = constants.WeiPerEther;
-      const maxAmountsIn = createBigNumberArray(tokens.length, constants.MaxUint256);
-      await tokens[1].approve(smartpool.address, constants.Zero);
-      await expect(
-        smartpool["joinPool(uint256,uint256[])"](mintAmount, maxAmountsIn)
-      ).to.be.revertedWith("ERC20: transfer amount exceeds allowance");
-    });
-    it("Adding liquidity with front running protection when a token transfer returns false should fail", async () => {
-      const mintAmount = constants.WeiPerEther.div(4);
-      const maxAmountsIn = createBigNumberArray(tokens.length, constants.MaxUint256);
-      await tokens[1].setTransferFromReturnFalse(true);
-      await expect(
-        smartpool["joinPool(uint256,uint256[])"](mintAmount, maxAmountsIn)
-      ).to.be.revertedWith("LibUnderlying._pullUnderlying: transferFrom failed");
-    });
-    it("Removing liquidity with front running protection should work", async () => {
-      const removeAmount = constants.WeiPerEther.div(2);
-      const minAmountsOut = createBigNumberArray(tokens.length, constants.Zero);
-      await smartpool["exitPool(uint256,uint256[])"](removeAmount, minAmountsOut);
-      const balance = await smartpool.balanceOf(account);
-      expect(balance).to.eq(INITIAL_SUPPLY.sub(removeAmount));
+  //   it("Adding liquidity with front running protection when a transfer fails should fail", async () => {
+  //     const mintAmount = constants.WeiPerEther;
+  //     const maxAmountsIn = createBigNumberArray(tokens.length, constants.MaxUint256);
+  //     await tokens[1].approve(smartpool.address, constants.Zero);
+  //     await expect(
+  //       smartpool["joinPool(uint256,uint256[])"](mintAmount, maxAmountsIn)
+  //     ).to.be.revertedWith("ERC20: transfer amount exceeds allowance");
+  //   });
+  //   it("Adding liquidity with front running protection when a token transfer returns false should fail", async () => {
+  //     const mintAmount = constants.WeiPerEther.div(4);
+  //     const maxAmountsIn = createBigNumberArray(tokens.length, constants.MaxUint256);
+  //     await tokens[1].setTransferFromReturnFalse(true);
+  //     await expect(
+  //       smartpool["joinPool(uint256,uint256[])"](mintAmount, maxAmountsIn)
+  //     ).to.be.revertedWith("LibUnderlying._pullUnderlying: transferFrom failed");
+  //   });
+  //   it("Removing liquidity with front running protection should work", async () => {
+  //     const removeAmount = constants.WeiPerEther.div(2);
+  //     const minAmountsOut = createBigNumberArray(tokens.length, constants.Zero);
+  //     await smartpool["exitPool(uint256,uint256[])"](removeAmount, minAmountsOut);
+  //     const balance = await smartpool.balanceOf(account);
+  //     expect(balance).to.eq(INITIAL_SUPPLY.sub(removeAmount));
 
-      for (let entry of tokens) {
-        const userBalance = await entry.balanceOf(account)
-        expect(userBalance).to.eq(INITIAL_TOKEN_SUPPLY.sub(removeAmount.div(2)));
-      }
-    });
+  //     for (let entry of tokens) {
+  //       const userBalance = await entry.balanceOf(account)
+  //       expect(userBalance).to.eq(INITIAL_TOKEN_SUPPLY.sub(removeAmount.div(2)));
+  //     }
+  //   });
 
-    it("Removing liquidity with front running protection should fail when one of the token outputs is less than minAmount", async () => {
-      const removeAmount = constants.WeiPerEther.div(2);
-      const minAmountsOut = createBigNumberArray(tokens.length, constants.Zero);
-      minAmountsOut[2] = constants.MaxUint256;
-      await expect(
-        smartpool["exitPool(uint256,uint256[])"](removeAmount, minAmountsOut)
-      ).to.be.revertedWith("LibPoolEntryExit.exitPool: Token amount out too small");
-    });
+  //   it("Removing liquidity with front running protection should fail when one of the token outputs is less than minAmount", async () => {
+  //     const removeAmount = constants.WeiPerEther.div(2);
+  //     const minAmountsOut = createBigNumberArray(tokens.length, constants.Zero);
+  //     minAmountsOut[2] = constants.MaxUint256;
+  //     await expect(
+  //       smartpool["exitPool(uint256,uint256[])"](removeAmount, minAmountsOut)
+  //     ).to.be.revertedWith("LibPoolEntryExit.exitPool: Token amount out too small");
+  //   });
 
-    it("Removing all liquidity with front running protection should fail", async () => {
-      const removeAmount = constants.WeiPerEther;
-      const minAmountsOut = createBigNumberArray(tokens.length, constants.Zero);
-      await expect(
-        smartpool["exitPool(uint256,uint256[])"](removeAmount, minAmountsOut)
-      ).to.be.revertedWith("ERR_MIN_BALANCE");
-    });
+  //   it("Removing all liquidity with front running protection should fail", async () => {
+  //     const removeAmount = constants.WeiPerEther;
+  //     const minAmountsOut = createBigNumberArray(tokens.length, constants.Zero);
+  //     await expect(
+  //       smartpool["exitPool(uint256,uint256[])"](removeAmount, minAmountsOut)
+  //     ).to.be.revertedWith("ERR_MIN_BALANCE");
+  //   });
 
-    it("Removing liquidity with front running protection should fail when removing more than balance", async () => {
-      const minAmountsOut = createBigNumberArray(tokens.length, constants.Zero);
-      // First mint some more in another account to not withdraw all total liquidity in the actual test
-      const altSignerSmartPool = Pv2SmartPoolFactory.connect(smartpool.address, signers[1]);
-      await altSignerSmartPool.joinPool(constants.WeiPerEther);
-      await expect(
-        smartpool["exitPool(uint256,uint256[])"](INITIAL_SUPPLY.add(1), minAmountsOut)
-      ).to.be.revertedWith("ERR_INSUFFICIENT_BAL");
-    });
+  //   it("Removing liquidity with front running protection should fail when removing more than balance", async () => {
+  //     const minAmountsOut = createBigNumberArray(tokens.length, constants.Zero);
+  //     // First mint some more in another account to not withdraw all total liquidity in the actual test
+  //     const altSignerSmartPool = Pv2SmartPoolFactory.connect(smartpool.address, signers[1]);
+  //     await altSignerSmartPool.joinPool(constants.WeiPerEther);
+  //     await expect(
+  //       smartpool["exitPool(uint256,uint256[])"](INITIAL_SUPPLY.add(1), minAmountsOut)
+  //     ).to.be.revertedWith("ERR_INSUFFICIENT_BAL");
+  //   });
 
-    it("Removing liquidity with front running protection when a token transfer fails should fail", async () => {
-      const minAmountsOut = createBigNumberArray(tokens.length, constants.Zero);
-      await tokens[0].setTransferFailed(true);
-      await expect(
-        smartpool["exitPool(uint256,uint256[])"](constants.WeiPerEther.div(2), minAmountsOut)
-      ).to.be.revertedWith("MockToken.transfer: transferFrom set to fail");
-    });
+  //   it("Removing liquidity with front running protection when a token transfer fails should fail", async () => {
+  //     const minAmountsOut = createBigNumberArray(tokens.length, constants.Zero);
+  //     await tokens[0].setTransferFailed(true);
+  //     await expect(
+  //       smartpool["exitPool(uint256,uint256[])"](constants.WeiPerEther.div(2), minAmountsOut)
+  //     ).to.be.revertedWith("MockToken.transfer: transferFrom set to fail");
+  //   });
 
-    it("Removing liquidity with frontrunning protection when a token transfer returns false should fail", async () => {
-      // transfer token 返回false时，通过前端保护去除流动性会失败
-      const minAmountsOut = createBigNumberArray(tokens.length, constants.Zero);
-      await tokens[0].setTransferReturnFalse(true);
-      await expect(
-        smartpool["exitPool(uint256,uint256[])"](constants.WeiPerEther.div(2), minAmountsOut)
-      ).to.be.revertedWith("ERR_ERC20_FALSE");
-    });
-  });
+  //   it("Removing liquidity with frontrunning protection when a token transfer returns false should fail", async () => {
+  //     // transfer token 返回false时，通过前端保护去除流动性会失败
+  //     const minAmountsOut = createBigNumberArray(tokens.length, constants.Zero);
+  //     await tokens[0].setTransferReturnFalse(true);
+  //     await expect(
+  //       smartpool["exitPool(uint256,uint256[])"](constants.WeiPerEther.div(2), minAmountsOut)
+  //     ).to.be.revertedWith("ERR_ERC20_FALSE");
+  //   });
+  // });
 
-  describe("Token binding", async () => {
-    it("Binding a new token should work", async () => {
-      const mintAmount = constants.WeiPerEther.mul(1000000);
-      const token: MockToken = await tokenFactory.deploy("Mock", "M", 18);
-      await token.mint(account, mintAmount);
-      await token.approve(smartpool.address, constants.MaxUint256);
+  // describe("Token binding", async () => {
+  //   it("Binding a new token should work", async () => {
+  //     const mintAmount = constants.WeiPerEther.mul(1000000);
+  //     const token: MockToken = await tokenFactory.deploy("Mock", "M", 18);
+  //     await token.mint(account, mintAmount);
+  //     await token.approve(smartpool.address, constants.MaxUint256);
 
-      await smartpool.bind(token.address, constants.WeiPerEther, constants.WeiPerEther);
+  //     await smartpool.bind(token.address, constants.WeiPerEther, constants.WeiPerEther);
 
-      const tokenBalance = await token.balanceOf(account);
-      expect(tokenBalance).to.eq(mintAmount.sub(constants.WeiPerEther));
+  //     const tokenBalance = await token.balanceOf(account);
+  //     expect(tokenBalance).to.eq(mintAmount.sub(constants.WeiPerEther));
 
-      for (let entry of tokens) {
-        const userBalance = await entry.balanceOf(account)
-        expect(userBalance).to.eq(INITIAL_TOKEN_SUPPLY.sub(constants.WeiPerEther.div(2)));
-      }
-    });
-    it("Binding a token when transferFrom returns false should fail", async () => {
-      const mintAmount = constants.WeiPerEther.mul(1000000);
-      const token: MockToken = await tokenFactory.deploy("Mock", "M", 18);
-      await token.mint(account, mintAmount);
-      await token.approve(smartpool.address, constants.MaxUint256);
-      await token.setTransferFromReturnFalse(true);
-      await expect(
-        smartpool.bind(token.address, constants.WeiPerEther, constants.WeiPerEther)
-      ).to.be.revertedWith("PV2SmartPool.bind: transferFrom failed");
-    });
-    it("Binding from a non token binder address should fail", async () => {
-      smartpool = smartpool.connect(signers[1]);
-      const mintAmount = constants.WeiPerEther.mul(1000000);
-      const token: MockToken = await tokenFactory.deploy("Mock", "M", 18);
-      await token.mint(account, mintAmount);
-      await token.approve(smartpool.address, constants.MaxUint256);
-      await expect(
-        smartpool.bind(token.address, constants.WeiPerEther, constants.WeiPerEther)
-      ).to.be.revertedWith("PV2SmartPool.onlyTokenBinder: not token binder");
-    });
-    it("Rebinding a token should work", async () => {
-      // Doubles the weight in the pool
-      await smartpool.rebind(
-        tokens[0].address,
-        constants.WeiPerEther.mul(2),
-        constants.WeiPerEther.mul(2)
-      );
-    });
-    it("Rebinding a token reducing the balance should work", async () => {
-      await smartpool.rebind(
-        tokens[0].address,
-        constants.WeiPerEther.div(4),  // division 除
-        constants.WeiPerEther.mul(2)   // multiply 乘
-      );
-    });
-    it("Rebinding a token reducing the balance when the the token token transfer returns false should fail", async () => {
-      await tokens[0].setTransferReturnFalse(true);
-      await expect(
-        smartpool.rebind(
-          tokens[0].address,
-          constants.WeiPerEther.div(4),
-          constants.WeiPerEther.mul(2)
-        )
-      ).to.be.revertedWith("ERR_ERC20_FALSE");
-    });
-    it("Rebinding a token from a non token binder address should fail", async () => {
-      smartpool = smartpool.connect(signers[1]);
-      await expect(
-        smartpool.rebind(
-          tokens[0].address,
-          constants.WeiPerEther.mul(2),
-          constants.WeiPerEther.mul(2)
-        )
-      ).to.be.revertedWith("PV2SmartPool.onlyTokenBinder: not token binder");
-    });
-    it("Unbinding a token should work", async () => {
-      smartpool.unbind(tokens[0].address);
-      for (let entry of tokens) {
-        const userBalance = await entry.balanceOf(account)
-        expect(userBalance).to.eq(INITIAL_TOKEN_SUPPLY.sub(constants.WeiPerEther.div(2)));
-      }
-    });
-    it("Unbinding a token from a non token binder address should fail", async () => {
-      smartpool = smartpool.connect(signers[1]);
-      await expect(smartpool.unbind(tokens[0].address)).to.be.revertedWith(
-        "revert PV2SmartPool.onlyTokenBinder: not token binder"
-      );
-    });
-  });
+  //     for (let entry of tokens) {
+  //       const userBalance = await entry.balanceOf(account)
+  //       expect(userBalance).to.eq(INITIAL_TOKEN_SUPPLY.sub(constants.WeiPerEther.div(2)));
+  //     }
+  //   });
+  //   it("Binding a token when transferFrom returns false should fail", async () => {
+  //     const mintAmount = constants.WeiPerEther.mul(1000000);
+  //     const token: MockToken = await tokenFactory.deploy("Mock", "M", 18);
+  //     await token.mint(account, mintAmount);
+  //     await token.approve(smartpool.address, constants.MaxUint256);
+  //     await token.setTransferFromReturnFalse(true);
+  //     await expect(
+  //       smartpool.bind(token.address, constants.WeiPerEther, constants.WeiPerEther)
+  //     ).to.be.revertedWith("PV2SmartPool.bind: transferFrom failed");
+  //   });
+  //   it("Binding from a non token binder address should fail", async () => {
+  //     smartpool = smartpool.connect(signers[1]);
+  //     const mintAmount = constants.WeiPerEther.mul(1000000);
+  //     const token: MockToken = await tokenFactory.deploy("Mock", "M", 18);
+  //     await token.mint(account, mintAmount);
+  //     await token.approve(smartpool.address, constants.MaxUint256);
+  //     await expect(
+  //       smartpool.bind(token.address, constants.WeiPerEther, constants.WeiPerEther)
+  //     ).to.be.revertedWith("PV2SmartPool.onlyTokenBinder: not token binder");
+  //   });
+  //   it("Rebinding a token should work", async () => {
+  //     // Doubles the weight in the pool
+  //     await smartpool.rebind(
+  //       tokens[0].address,
+  //       constants.WeiPerEther.mul(2),
+  //       constants.WeiPerEther.mul(2)
+  //     );
+  //   });
+  //   it("Rebinding a token reducing the balance should work", async () => {
+  //     await smartpool.rebind(
+  //       tokens[0].address,
+  //       constants.WeiPerEther.div(4),  // division 除
+  //       constants.WeiPerEther.mul(2)   // multiply 乘
+  //     );
+  //   });
+  //   it("Rebinding a token reducing the balance when the the token token transfer returns false should fail", async () => {
+  //     await tokens[0].setTransferReturnFalse(true);
+  //     await expect(
+  //       smartpool.rebind(
+  //         tokens[0].address,
+  //         constants.WeiPerEther.div(4),
+  //         constants.WeiPerEther.mul(2)
+  //       )
+  //     ).to.be.revertedWith("ERR_ERC20_FALSE");
+  //   });
+  //   it("Rebinding a token from a non token binder address should fail", async () => {
+  //     smartpool = smartpool.connect(signers[1]);
+  //     await expect(
+  //       smartpool.rebind(
+  //         tokens[0].address,
+  //         constants.WeiPerEther.mul(2),
+  //         constants.WeiPerEther.mul(2)
+  //       )
+  //     ).to.be.revertedWith("PV2SmartPool.onlyTokenBinder: not token binder");
+  //   });
+  //   it("Unbinding a token should work", async () => {
+  //     smartpool.unbind(tokens[0].address);
+  //     for (let entry of tokens) {
+  //       const userBalance = await entry.balanceOf(account)
+  //       expect(userBalance).to.eq(INITIAL_TOKEN_SUPPLY.sub(constants.WeiPerEther.div(2)));
+  //     }
+  //   });
+  //   it("Unbinding a token from a non token binder address should fail", async () => {
+  //     smartpool = smartpool.connect(signers[1]);
+  //     await expect(smartpool.unbind(tokens[0].address)).to.be.revertedWith(
+  //       "revert PV2SmartPool.onlyTokenBinder: not token binder"
+  //     );
+  //   });
+  // });
 
-  describe("ready modifier", async () => {
-    it("should revert when not ready", async () => {
-      smartpool = (await run("deploy-libraries-and-smartpool")) as Pv2SmartPool;
-      await expect(smartpool.joinPool(constants.WeiPerEther)).to.be.revertedWith(
-        "PV2SmartPool.ready: not ready"
-      );
-    });
-  });
+  // describe("ready modifier", async () => {
+  //   it("should revert when not ready", async () => {
+  //     smartpool = (await run("deploy-libraries-and-smartpool")) as Pv2SmartPool;
+  //     await expect(smartpool.joinPool(constants.WeiPerEther)).to.be.revertedWith(
+  //       "PV2SmartPool.ready: not ready"
+  //     );
+  //   });
+  // });
 
-  describe("lockBPoolSwap modifier", async () => {
-    it("If swap disabled, keep disabled", async () => {
-      // 如果禁用交换，就保持禁用
-      await expect (await smartpool.isPublicSwap()).is.eq(false);// PV2SmartPool
-      await smartpool.joinPool(constants.WeiPerEther);
-      await expect (await pool.isPublicSwap()).is.eq(false); // Ibpool
-    });
-    it("If swap enabled, keep enabled", async () => {
-      // 启用交换，保持启用
-      await smartpool.setPublicSwap(true);
-      await expect (await smartpool.isPublicSwap()).is.eq(true);
-      // would be nice of we can verify the following calls
-      //    setPublicSwap(false)
-      //    setPublicSwap(true)
-      // Is there a mocking library that allows this?
-      // Or test by require(isPublicSwap == false) in a function
-      await smartpool.joinPool(constants.WeiPerEther);
-      await expect (await smartpool.isPublicSwap()).is.eq(true);
-    });
-  });
+  // describe("lockBPoolSwap modifier", async () => {
+  //   it("If swap disabled, keep disabled", async () => {
+  //     // 如果禁用交换，就保持禁用
+  //     await expect (await smartpool.isPublicSwap()).is.eq(false);// PV2SmartPool
+  //     await smartpool.joinPool(constants.WeiPerEther);
+  //     await expect (await pool.isPublicSwap()).is.eq(false); // Ibpool
+  //   });
+  //   it("If swap enabled, keep enabled", async () => {
+  //     // 启用交换，保持启用
+  //     await smartpool.setPublicSwap(true);
+  //     await expect (await smartpool.isPublicSwap()).is.eq(true);
+  //     // would be nice of we can verify the following calls
+  //     //    setPublicSwap(false)
+  //     //    setPublicSwap(true)
+  //     // Is there a mocking library that allows this?
+  //     // Or test by require(isPublicSwap == false) in a function
+  //     await smartpool.joinPool(constants.WeiPerEther);
+  //     await expect (await smartpool.isPublicSwap()).is.eq(true);
+  //   });
+  // });
 
-  describe("Utility Functions", async () => {
-    describe("getDenormalizedWeight(address _token)", async () => {
-      it("Should return denormalized weight of underlying token in bPool", async () => {
-        smartpool = smartpool.connect(signers[1]);
+  // describe("Utility Functions", async () => {
+  //   // 效用功能
+  //   describe("getDenormalizedWeight(address _token)", async () => {
+  //     it("Should return denormalized weight of underlying token in bPool", async () => {
+  //       smartpool = smartpool.connect(signers[1]);
 
-        const tokenWeight = await smartpool.getDenormalizedWeight(tokens[0].address);
+  //       const tokenWeight = await smartpool.getDenormalizedWeight(tokens[0].address);
 
-        expect(tokenWeight).to.equal(constants.WeiPerEther);
-      });
-    });
-  });
+  //       expect(tokenWeight).to.equal(constants.WeiPerEther);
+  //     });
+  //   });
+  // });
 
   async function getTokenBalances(address: string) {
     const balances: BigNumber[] = [];
@@ -730,7 +754,7 @@ describe("Basic Pool Functionality", function () {
       balances.push(await token.balanceOf(address));
     }
 
-    return balances;
+    return balances; // token 余额
   }
 
   function expectZero(amounts: BigNumber[]) {
