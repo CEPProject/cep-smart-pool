@@ -138,7 +138,7 @@ contract PV2SmartPool is IPV2SmartPool, PCToken, ReentryProtection {
   /**
         @notice Burns pool shares and sends back the underlying assets leaving some in the pool
         @param _amount Amount of pool tokens to burn
-        @param _lossTokens Tokens skipped on redemption
+        @param _lossTokens Tokens skipped on redemption  代币在兑换时被跳过
     */
   function exitPoolTakingloss(uint256 _amount, address[] calldata _lossTokens)
     external

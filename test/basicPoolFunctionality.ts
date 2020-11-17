@@ -94,12 +94,12 @@ describe("Basic Pool Functionality", function () {
         smartpool.init(PLACE_HOLDER_ADDRESS, "TEST", "TEST", ethers.constants.Zero)
       ).to.be.revertedWith("PV2SmartPool.init: _initialSupply can not zero");
     });
-    it("Token symbol should be correct", async () => {
+    it("Token name should be correct", async () => {
       // 代币符号是正确的
       const name = await smartpool.name();
       expect(name).to.eq(NAME);
     });
-    it("Token name should be correct", async () => {
+    it("Token symbol should be correct", async () => {
       const symbol = await smartpool.symbol();
       expect(symbol).to.eq(SYMBOL);
     });
@@ -107,15 +107,17 @@ describe("Basic Pool Functionality", function () {
       const initialSupply = await smartpool.totalSupply();
       expect(initialSupply).to.eq(INITIAL_SUPPLY);
     });
-    it("Controller should be correctly set", async () => {
+    it("Controller should be correctly set", async () => {// 管理员
       const controller = await smartpool.getController();
       expect(controller).to.eq(account);
     });
     it("Public swap setter should be correctly set", async () => {
+      // 正确设置 公共交换设置器
       const publicSwapSetter = await smartpool.getPublicSwapSetter();
       expect(publicSwapSetter).to.eq(account);
     });
     it("Token binder should be correctly set", async () => {
+      // token 绑定器
       const tokenBinder = await smartpool.getTokenBinder();
       expect(tokenBinder).to.eq(account);
     });
@@ -125,10 +127,12 @@ describe("Basic Pool Functionality", function () {
     });
     it("Tokens should be correctly set", async () => {
       const actualTokens = await smartpool.getTokens();
+      // 数组.map() 对数组的每个元素调用定义的回调函数并返回包含结果的数组
       const tokenAddresses = tokens.map((token) => token.address);
-      expect(actualTokens).eql(tokenAddresses);
+      expect(actualTokens).eql(tokenAddresses); // 实际token = token 地址
     });
     it("calcTokensForAmount should work", async () => {
+      // 计算代币金额
       const amountAndTokens = await smartpool.calcTokensForAmount(constants.WeiPerEther);
       const tokenAddresses = tokens.map((token) => token.address);
       const expectedAmounts = tokens.map(() => constants.WeiPerEther.div(2));
@@ -290,7 +294,7 @@ describe("Basic Pool Functionality", function () {
 
     it("Removing liquidity leaving a single token should work", async () => {
       const removeAmount = constants.WeiPerEther.div(2);
-
+      // Pv2SmartPool 合约中定义的方法
       await smartpool.exitPoolTakingloss(removeAmount, [tokens[0].address]);
       const balance = await smartpool.balanceOf(account);
       expect(balance).to.eq(INITIAL_SUPPLY.sub(removeAmount));
