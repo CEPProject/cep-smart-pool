@@ -229,7 +229,9 @@ describe("Basic Pool Functionality", function () {
   });
 
   describe("Joining and Exiting", async () => {
+    // 加盟与退出
     it("Adding liquidity should work", async () => {
+      // 增加流动性
       const mintAmount = constants.WeiPerEther;
       await smartpool.joinPool(mintAmount);
 
@@ -242,10 +244,11 @@ describe("Basic Pool Functionality", function () {
       }
     });
     it("Adding liquidity when a transfer fails should fail", async () => {
+      // transfer失败时增加流动性也会失败
       const mintAmount = constants.WeiPerEther;
       await tokens[1].approve(smartpool.address, constants.Zero);
       await expect(smartpool.joinPool(mintAmount)).to.be.revertedWith(
-        "ERC20: transfer amount exceeds allowance"
+        "ERC20: transfer amount exceeds allowance" // 转账金额超过限额
       );
     });
     it("Adding liquidity when a token transfer returns false should fail", async () => {
@@ -256,6 +259,7 @@ describe("Basic Pool Functionality", function () {
       );
     });
     it("Removing liquidity should work", async () => {
+      // 消除流动性
       const removeAmount = constants.WeiPerEther.div(2);
 
       await smartpool["exitPool(uint256)"](removeAmount);
@@ -274,7 +278,7 @@ describe("Basic Pool Functionality", function () {
       );
     });
     it("Removing liquidity should fail when removing more than balance", async () => {
-      // First mint some more in another account to not withdraw all total liquidity in the actual test
+      // 首先在另一个账户中注入更多的钱，以免在实际测试中提取全部的流动资金
       const altSignerSmartPool = Pv2SmartPoolFactory.connect(smartpool.address, signers[1]);
       await altSignerSmartPool.joinPool(constants.WeiPerEther);
       await expect(smartpool["exitPool(uint256)"](INITIAL_SUPPLY.add(1))).to.be.revertedWith(
@@ -326,6 +330,7 @@ describe("Basic Pool Functionality", function () {
     });
 
     it("Should fail to join with a single token if token is unbound", async () => {
+      // 如果token未绑定，则应该无法使用单个token加入
       await smartpool.unbind(tokens[0].address);
       await smartpool.setPublicSwap(true);
       const mintAmount = constants.WeiPerEther;
@@ -339,6 +344,7 @@ describe("Basic Pool Functionality", function () {
     });
 
     it("joinswapPoolAmountOut should work", async () => {
+      // 加入交换池额度
       await smartpool.setPublicSwap(true);
       const mintAmount = constants.WeiPerEther.div(100);
       const inputToken = tokens[0];
@@ -393,6 +399,7 @@ describe("Basic Pool Functionality", function () {
     });
 
     it("Joining the pool from a single asset when public swap is disabled should fail", async () => {
+      // 禁用公共交换时从单个资产加入池应该失败
       const poolAmountOut = constants.WeiPerEther.div(100);
       const tokenAmountIn = constants.WeiPerEther.div(100);
       const tokenInAddress = tokens[0].address;
@@ -407,6 +414,7 @@ describe("Basic Pool Functionality", function () {
     });
 
     it("Should fail to exit with a single token if token is unbound", async () => {
+      // 如果token未绑定，应该无法通过单个token退出
       await smartpool.unbind(tokens[1].address);
       const exitAmount = constants.WeiPerEther;
       await smartpool.setPublicSwap(true);
@@ -420,6 +428,7 @@ describe("Basic Pool Functionality", function () {
     });
 
     it("exitswapPoolAmountIn should work", async () => {
+      // 退出交换池金额
       await smartpool.setPublicSwap(true);
       const outputToken = tokens[0];
       const burnAmount = INITIAL_SUPPLY.div(100);
@@ -487,6 +496,7 @@ describe("Basic Pool Functionality", function () {
   });
 
   describe("Front running protected join and exit", async () => {
+    // 前端运行受保护的加入和退出
     it("Adding liquidity with frontrunning protection should work should work", async () => {
       const mintAmount = constants.WeiPerEther;
       const maxAmountsIn = createBigNumberArray(tokens.length, constants.MaxUint256);
@@ -575,6 +585,7 @@ describe("Basic Pool Functionality", function () {
     });
 
     it("Removing liquidity with frontrunning protection when a token transfer returns false should fail", async () => {
+      // transfer token 返回false时，通过前端保护去除流动性会失败
       const minAmountsOut = createBigNumberArray(tokens.length, constants.Zero);
       await tokens[0].setTransferReturnFalse(true);
       await expect(
