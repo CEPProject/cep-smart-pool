@@ -151,6 +151,7 @@ describe("Basic Pool Functionality", function () {
   });
 
   describe("Controller functions", async () => {
+    // 管理员的功能
     it("Setting a new controller should work", async () => {
       await smartpool.setController(PLACE_HOLDER_ADDRESS);
       const controller = await smartpool.getController();
@@ -199,6 +200,7 @@ describe("Basic Pool Functionality", function () {
       );
     });
     it("Setting the swap fee should work", async () => {
+      // 设置交换费用
       const feeValue = constants.WeiPerEther.div(20);
       await smartpool.setSwapFee(feeValue);
       const swapFee = await smartpool.getSwapFee();
@@ -211,12 +213,14 @@ describe("Basic Pool Functionality", function () {
       );
     });
     it("Should revert with unsupported function error when calling finalizePool()", async () => {
+      // 调用finalizePool（）时应返回不受支持的函数错误
       smartpool = smartpool.connect(signers[1]);
       await expect(smartpool.finalizeSmartPool()).to.be.revertedWith(
         "PV2SmartPool.finalizeSmartPool: unsupported function"
       );
     });
     it("Should revert with unsupported function error when calling createPool(uint256 initialSupply)", async () => {
+      // 调用createPool（uint256 initialSupply）时应返回不受支持的函数错误
       smartpool = smartpool.connect(signers[1]);
       await expect(smartpool.createPool(0)).to.be.revertedWith(
         "PV2SmartPool.createPool: unsupported function"
