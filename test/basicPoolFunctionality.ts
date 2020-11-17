@@ -642,8 +642,8 @@ describe("Basic Pool Functionality", function () {
     it("Rebinding a token reducing the balance should work", async () => {
       await smartpool.rebind(
         tokens[0].address,
-        constants.WeiPerEther.div(4),
-        constants.WeiPerEther.mul(2)
+        constants.WeiPerEther.div(4),  // division 除
+        constants.WeiPerEther.mul(2)   // multiply 乘
       );
     });
     it("Rebinding a token reducing the balance when the the token token transfer returns false should fail", async () => {
