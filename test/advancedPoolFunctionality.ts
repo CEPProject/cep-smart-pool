@@ -98,7 +98,7 @@ describe("Advanced Pool Functionality", function () {
     });
 
     it("Updating down should work", async () => {
-      向下更新
+      // 向下更新
       const weightBefore = await smartpool.getDenormalizedWeight(tokens[0].address);
       const totalWeightBefore = await pool.getTotalDenormalizedWeight();
       const poolTokenBalanceBefore = await tokens[0].balanceOf(pool.address);
