@@ -1,6 +1,6 @@
 pragma solidity 0.6.4;
 
-library PCTokenStorage {
+library PCTokenStorage { // 很多个合约中都引入了
   bytes32 public constant ptSlot = keccak256("PCToken.storage.location");
   struct StorageStruct {
     string name;

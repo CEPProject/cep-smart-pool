@@ -1,6 +1,6 @@
 pragma solidity ^0.6.4;
 
-library PCappedSmartPoolStorage {
+library PCappedSmartPoolStorage {// Capped 封顶   在 smart-pools PV2SmartPool.sol中引入了
   bytes32 public constant pcsSlot = keccak256("PCappedSmartPool.storage.location");
 
   struct StorageStruct {

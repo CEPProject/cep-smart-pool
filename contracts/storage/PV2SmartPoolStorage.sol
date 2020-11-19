@@ -1,9 +1,9 @@
 pragma solidity ^0.6.4;
 
-library PV2SmartPoolStorage {
+library PV2SmartPoolStorage { // 在很多合约中引入
   bytes32 public constant pasSlot = keccak256("PV2SmartPoolStorage.storage.location");
 
-  struct StorageStruct {
+  struct StorageStruct { // 储存结构
     uint256 startBlock;
     uint256 endBlock;
     uint256[] startWeights;

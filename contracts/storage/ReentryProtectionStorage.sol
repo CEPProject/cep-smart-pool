@@ -1,6 +1,6 @@
 pragma solidity 0.6.4;
 
-library ReentryProtectionStorage {
+library ReentryProtectionStorage { // 在 test > ReentryProtection.sol 合约中引入
   bytes32 public constant rpSlot = keccak256("ReentryProtection.storage.location");
   struct StorageStruct {
     uint256 lockCounter;
